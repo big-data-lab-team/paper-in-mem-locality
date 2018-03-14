@@ -24,6 +24,11 @@ def binarize_data(filename, data, affine, threshold):
 
     return (filename, data, affine)
 
+def loop_binarize(rdd, threshold, iterations):
+    for i in range(0, iterations):
+        rdd = rdd.map(lambda x: binarize_data(x[0], x[1], x[2], threshold))
+    return rdd
+
 def save_binarized(filename, data, affine):
     
     im = nib.Nifti1Image(data, affine)
@@ -36,11 +41,9 @@ threshold = 500
 
 # read binary data stored in folder and create an RDD from it
 imRDD = sc.binaryFiles('file://' + os.path.abspath('./bb_data'))
-bin1 = imRDD.map(lambda x: read_img(x[0], x[1])) \
-            .map(lambda x: binarize_data(x[0], x[1], x[2], threshold)) \
-            .map(lambda x: binarize_data(x[0], x[1], x[2], threshold)) \
-            .map(lambda x: save_binarized(x[0], x[1], x[2])) \
-            .collect()
+bin1 = loop_binarize(imRDD.map(lambda x: read_img(x[0], x[1])), threshold, 2) \
+       .map(lambda x: save_binarized(x[0], x[1], x[2])) \
+       .collect()
 
 print(bin1)
     
