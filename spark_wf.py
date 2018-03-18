@@ -19,47 +19,12 @@ workflow_name = 'test_anat_template'
 input_t1w = [os.path.abspath('data/ds052/sub-01/anat/sub-01_run-01_T1w.nii.gz'),
         os.path.abspath('data/ds052/sub-01/anat/sub-01_run-02_T1w.nii.gz')]
 longitudinal=False
-num_t1w=1
+num_t1w=2
 workdir = os.getcwd() + '/' +  workflow_name
 
-def templateDimensionsTask(part):
-    in_img = list(part)
+# helper functions
 
-
-    if len(in_img) > 0:
-        td = TemplateDimensions()
-        td.inputs.t1w_list = in_img
-
-        interface_dir = workdir + '/TemplateDimensions'
-
-        if not os.path.isdir(interface_dir):
-            os.makedirs(interface_dir)
-
-        runtime = bunch.Bunch(
-                            cwd=interface_dir,
-                            returncode=0,
-                            environ=dict(os.environ),
-                            hostname=socket.gethostname()
-                            )
-
-        td._run_interface(runtime)
-   
-    target_zooms = [td._results['target_zooms']] * len(td._results['t1w_valid_list'])
-    target_shapes = [td._results['target_shape']] * len(td._results['t1w_valid_list'])
-    out_report = [td._results['out_report']] * len(td._results['t1w_valid_list'])
-
-    output = [(a, (b, c, d)) for a, b, c, d in zip(td._results['t1w_valid_list'],
-                                                target_zooms, target_shapes, out_report)]
-    return output
-
-def t1ConformTask(img):
-    c = Conform()
-
-    c.inputs.in_file = img[0]
-    c.inputs.target_zooms = img[1][0]
-    c.inputs.target_shape = img[1][1]
-   
-    interface_dir = workdir + '/Conform'
+def get_runtime(interface_dir):
 
     if not os.path.isdir(interface_dir):
         os.makedirs(interface_dir)
@@ -70,15 +35,68 @@ def t1ConformTask(img):
                         environ=dict(os.environ),
                         hostname=socket.gethostname()
                         )
+    return runtime
 
-    c._run_interface(runtime)
+# pipeline activites
+def templateDimensionsTask(part):
+    print('executing template dimensions')
+    in_img = list(part)
+
+
+    if len(in_img) > 0:
+        td = TemplateDimensions()
+        td.inputs.t1w_list = in_img
+
+        interface_dir = workdir + '/TemplateDimensions'
+
+        td._run_interface(get_runtime(interface_dir))
+   
+    target_zooms = [td._results['target_zooms']] * len(td._results['t1w_valid_list'])
+    target_shapes = [td._results['target_shape']] * len(td._results['t1w_valid_list'])
+    out_report = [td._results['out_report']] * len(td._results['t1w_valid_list'])
+
+    output = [(a, (b, c, d)) for a, b, c, d in zip(td._results['t1w_valid_list'],
+                                                target_zooms, target_shapes, out_report)]
+    return output
+
+def t1ConformTask(img):
+    print('executing t1 conform')
+    c = Conform()
+
+    c.inputs.in_file = img[0]
+    c.inputs.target_zooms = img[1][0]
+    c.inputs.target_shape = img[1][1]
+   
+    interface_dir = workdir + '/Conform'
+
+    c._run_interface(get_runtime(interface_dir))
 
     return (c._results['out_file'], c._results['transform'])
 
-#def n4BiasFieldCorrectionTask(img):
+def n4BiasFieldCorrectionTask(img):
+    print('exectuing n4 bias field correction')
+    n4 = N4BiasFieldCorrection(dimension=3, copy_header=True)
+
+    n4.inputs.input_image = img[0]
+
+    interface_dir = workdir + '/N4BiasFieldCorrection'
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    n4._run_interface(get_runtime(interface_dir))
+
+    os.chdir(curr_dir)
+
+    # returning input image so it can be joined to other RDDs later on 
+    return(n4.inputs.input_image, n4._list_outputs()['output_image'])
 
 
 def outputIdentityTaskSingleT1(part):
+    print('Collecting outputs for single T1 image')
     part = list(part)
 
     out_id = createOutputInterfaceObj()
@@ -127,8 +145,14 @@ def execute_wf(workflow_name, workdir):
                          .collect()
         return out_rdd
 
+    # fmriprep code running on single proc for reproducibility
+    n4_correct_rdd = t1_conform_rdd.coalesce(1) \
+                                   .map(n4BiasFieldCorrectionTask)
 
+    # joined rdd takes format (input_image, (template, corrected))
+    #t1_merge_rdd = t1_conform_rdd.join(n4_correct_rdd)
 
+    #print(t1_merge_rdd)
 
     #print(t1_conform_rdd.collect())
 
