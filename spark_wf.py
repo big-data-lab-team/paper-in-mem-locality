@@ -2,6 +2,7 @@ from pyspark import SparkContext, SparkConf
 from niworkflows.nipype.interfaces.ants import N4BiasFieldCorrection
 from niworkflows.nipype.interfaces import (
     utility as niu,
+    freesurfer as fs,
     base
 )
 from fmriprep.interfaces import(
@@ -20,8 +21,8 @@ input_t1w = [os.path.abspath('data/ds052/sub-01/anat/sub-01_run-01_T1w.nii.gz'),
         os.path.abspath('data/ds052/sub-01/anat/sub-01_run-02_T1w.nii.gz')]
 longitudinal=False
 num_t1w=2
-workdir = os.getcwd() + '/' +  workflow_name
-
+workdir=os.getcwd() + '/' +  workflow_name
+omp_nthreads=1
 # helper functions
 
 def get_runtime(interface_dir):
@@ -41,7 +42,6 @@ def get_runtime(interface_dir):
 def templateDimensionsTask(part):
     print('executing template dimensions')
     in_img = list(part)
-
 
     if len(in_img) > 0:
         td = TemplateDimensions()
@@ -89,12 +89,53 @@ def n4BiasFieldCorrectionTask(img):
 
     n4._run_interface(get_runtime(interface_dir))
 
+    out = n4._list_outputs()
+    
     os.chdir(curr_dir)
 
     # returning input image so it can be joined to other RDDs later on 
-    return(n4.inputs.input_image, n4._list_outputs()['output_image'])
+    return (n4.inputs.input_image, out['output_image'])
+
+def robustTemplateTask(part):
+    part = list(part)
+    print('executing robust template task')
+    t1_merge = fs.RobustTemplate(auto_detect_sensitivity=True,
+                      initial_timepoint=1,      # For deterministic behavior
+                      intensity_scaling=True,   # 7-DOF (rigid + intensity)
+                      subsample_threshold=200,
+                      fixed_timepoint=not longitudinal,
+                      no_iteration=not longitudinal,
+                      transform_outputs=True,
+                      )
 
 
+    def _set_threads(in_list, maximum):
+        return min(len(in_list), maximum)
+
+    out_file = [i[0] for i in part]
+    output_image = [i[1][1] for i in part]
+    
+
+    t1_merge.inputs.num_threads = _set_threads(out_file, omp_nthreads)
+    t1_merge.inputs.out_file = add_suffix(out_file, '_template')
+    t1_merge.inputs.in_files = output_image
+
+    interface_dir = workdir + '/RobustTemplate'
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    t1_merge._run_interface(get_runtime(interface_dir))
+    out = t1_merge._list_outputs()
+
+    os.chdir(curr_dir)
+
+    return (out['out_file'], out['transform_outputs'])
+
+   
 def outputIdentityTaskSingleT1(part):
     print('Collecting outputs for single T1 image')
     part = list(part)
@@ -150,11 +191,12 @@ def execute_wf(workflow_name, workdir):
                                    .map(n4BiasFieldCorrectionTask)
 
     # joined rdd takes format (input_image, (template, corrected))
-    #t1_merge_rdd = t1_conform_rdd.join(n4_correct_rdd)
+    t1_merge_rdd = t1_conform_rdd.join(n4_correct_rdd) \
+                                 .coalesce(1) \
+                                 .mapPartitions(robustTemplateTask) \
+                                 .collect()
 
-    #print(t1_merge_rdd)
-
-    #print(t1_conform_rdd.collect())
+    print(t1_merge_rdd)
 
     
 execute_wf(workflow_name, workdir)
