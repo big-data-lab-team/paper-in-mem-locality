@@ -133,7 +133,12 @@ def robustTemplateTask(part):
 
     os.chdir(curr_dir)
 
-    return (out['out_file'], out['transform_outputs'])
+    rt_out_file = [out['out_file']] * len(out_file)
+    transform_out = [out['transform_outputs']] * len(out_file)
+
+    output = [(a, (b, c)) for a, b, c in zip(out_file, rt_out_file, transform_out)]
+
+    return output
 
    
 def outputIdentityTaskSingleT1(part):
