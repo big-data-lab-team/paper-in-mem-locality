@@ -44,19 +44,6 @@ def get_runtime(interface_dir):
     return runtime
 
 # pipeline activites
-def t1ConformTask(img):
-    print('executing t1 conform')
-    c = Conform()
-
-    c.inputs.in_file = img[0]
-    c.inputs.target_zooms = img[1][0]
-    c.inputs.target_shape = img[1][1]
-   
-    interface_dir = workdir + '/Conform'
-
-    c._run_interface(get_runtime(interface_dir))
-
-    return (c._results['out_file'], c._results['transform'])
 
 def n4BiasFieldCorrectionTask(img):
     print('exectuing n4 bias field correction')
@@ -271,6 +258,7 @@ def format_anat_template_rdd(s):
 
     return (s[0], a)
 
+
 def t1_template_dimensions(s, work_dir):
     print('executing template dimensions')
 
@@ -279,18 +267,46 @@ def t1_template_dimensions(s, work_dir):
 
     td._run_interface(get_runtime(work_dir))
   
-    TemplateDim = namedtuple('TemplateDim', ['target_zooms', 'target_shape', 'out_report'])
-    tempDim = TemplateDim(target_zooms=td._results['target_zooms'],
+    TemplateDim = namedtuple('TemplateDim', ['t1w_valid_list', 'target_zooms', 
+                                                'target_shape', 'out_report'])
+    tempDim = TemplateDim(
+                          t1w_valid_list=td._results['t1w_valid_list'],
+                          target_zooms=td._results['target_zooms'],
                           target_shape=td._results['target_shape'],
-                          out_report=td._results['out_report'])
+                          out_report=td._results['out_report']
+                          )
 
     return (s[0], tempDim)
+
+def t1_conform(s, work_dir):
+    print('executing t1 conform')
+    c = Conform()
+
+    c.inputs.in_file = s[1][0]
+    c.inputs.target_zooms = s[1][1][0]
+    c.inputs.target_shape = s[1][1][1]
+   
+    c._run_interface(get_runtime(work_dir))
+
+    T1Conform = namedtuple('T1Conform', ['out_file', 'transform'])
+    tconf = T1Conform(out_file=c._results['out_file'], transform=c._results['transform'])
+
+    return (s[0], tconf)
 
 def init_spark_anat_template(rdd, longitudinal, work_dir):
     
     t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir))
+    
+    # create an tuple for each existing t1w image in RDD
+    t1w_list_rdd = t1_tempdim_rdd.flatMap(lambda x: 
+                        [(a,b) for a,b in zip([x[0]]*len(x[1].t1w_valid_list), x[1].t1w_valid_list)])
 
-    print(t1_tempdim_rdd.collect())
+    t1_targets_rdd = t1_tempdim_rdd.map(lambda x: (x[0], (x[1].target_zooms, x[1].target_shape)))
+
+    t1_conform_rdd = t1w_list_rdd.join(t1_targets_rdd) \
+                                 .map(lambda x: t1_conform(x, work_dir))
+
+    print(t1_conform_rdd.collect())
 
 def init_spark_anat_preproc(rdd, skull_strip_template, output_spaces, template,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
