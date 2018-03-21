@@ -11,8 +11,9 @@ from fmriprep.interfaces import(
         ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo
 )
 from fmriprep.utils.misc import add_suffix
-from fmriprep.utils.bids import collect_participants
+from fmriprep.utils.bids import collect_participants, collect_data
 from pkg_resources import resource_filename as pkgr
+from collections import namedtuple
 import os, bunch, socket, argparse
 
 
@@ -222,6 +223,28 @@ def fsdir(output_dir, output_spaces, work_dir):
 
     return out['subjects_dir']
 
+def get_subject_data(subject_id, task_id, bids_dir):
+    subject_data, layout = collect_data(bids_dir, subject_id, task_id)
+
+    # Subject = namedtuple('Subject', ['id', 'data'])
+    # sub = Subject(id=subject_id, data=subject_data)
+
+    return (subject_id, subject_data)
+
+def bidssrc(s, anat_only, work_dir):
+    print('Executing BIDSDataGrabber interface')
+
+    bsrc = BIDSDataGrabber(subject_id=s[0], subject_data=s[1], anat_only=anat_only)
+
+    bsrc._run_interface(get_runtime(work_dir))
+    out = bsrc._list_outputs()
+
+    BSRC = namedtuple('BSRC', ['t1w', 't2w', 'bold'])
+    b = BSRC(t1w=out['t1w'], t2w=out['t2w'], bold=out['bold'])
+
+    return (s[0], b)
+
+
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
                  freesurfer, output_spaces, template, medial_surface_nan,
@@ -232,9 +255,13 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
 
     sc = create_spark_context(wf_name)
 
-    subject_rdd = sc.parallelize(subject_list).collect()
+    subject_rdd = sc.parallelize(subject_list) \
+            .map(lambda x: get_subject_data(x, task_id, bids_dir)) \
+            .cache()
 
-    print(subject_rdd)
+    bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir))
+
+    print(bidssrc_rdd.collect())
 
 def main():
     parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
