@@ -8,7 +8,7 @@ from niworkflows.nipype.interfaces import (
 from fmriprep.interfaces import(
         DerivativesDataSink, MakeMidthickness, FSInjectBrainExtracted,
         FSDetectInputs, NormalizeSurf, GiftiNameSource, TemplateDimensions, Conform, Reorient,
-        ConcatAffines, RefineBrainMask,
+        ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo
 )
 from fmriprep.utils.misc import add_suffix
 from fmriprep.utils.bids import collect_participants
@@ -207,10 +207,34 @@ def execute_anat_template_wf(workflow_name, workdir):
     print(t1_merge_rdd)
 
     
-#execute_anat_template_wf(workflow_name, workdir)
 
-def execute_main_wf():
-    pass
+def fsdir(output_dir, output_spaces, work_dir):
+    print('Executing BIDSFreeSurferDir interface')
+
+    bidsfs = BIDSFreeSurferDir(
+                derivatives=output_dir,
+                freesurfer_home=os.getenv('FREESURFER_HOME'),
+                spaces=output_spaces)
+
+
+    bidsfs._run_interface(get_runtime(work_dir))
+    out = bidsfs._list_outputs()
+
+    return out['subjects_dir']
+
+def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
+                 t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
+                 freesurfer, output_spaces, template, medial_surface_nan,
+                 hires, use_bbr, bold2t1w_dof, fmap_bspline, fmap_demean,
+                 use_syn, force_syn, use_aroma, output_grid_ref, wf_name='sprep_wf'):
+    
+    subjects_dir = fsdir(output_dir, output_spaces, work_dir)
+
+    sc = create_spark_context(wf_name)
+
+    subject_rdd = sc.parallelize(subject_list).collect()
+
+    print(subject_rdd)
 
 def main():
     parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
@@ -233,14 +257,14 @@ def main():
     output_space = ['template', 'fsaverage5']
     template = 'MNI152NLin2009cAsym'
     medial_surface_nan = False
-    output_grid_reference = None
+    output_grid_ref = None
     hires = True
     use_bbr = None
     bold2t1w_dof = 9
     fmap_bspline = False
     fmap_no_demean = True
     use_syn_sdc = False
-    force_sym = False
+    force_syn = False
     use_aroma = False
 
     output_dir = os.path.abspath(args.output_dir)
@@ -254,8 +278,31 @@ def main():
             participant_label=None)
 
 
-    print(subject_list)
-
+    init_main_wf(
+            subject_list=subject_list,
+            task_id=None,
+            ignore=ignore,
+            anat_only=anat_only,
+            longitudinal=longitudinal,
+            t2s_coreg=t2s_coreg,
+            skull_strip_template=skull_strip_template,
+            work_dir=work_dir,
+            output_dir=output_dir,
+            bids_dir=bids_dir,
+            freesurfer=run_reconall,
+            output_spaces=output_space,
+            template=template,
+            medial_surface_nan=medial_surface_nan,
+            output_grid_ref=output_grid_ref,
+            hires=hires,
+            use_bbr=use_bbr,
+            bold2t1w_dof=bold2t1w_dof,
+            fmap_bspline=fmap_bspline,
+            fmap_demean=fmap_no_demean,
+            use_syn=use_syn_sdc,
+            force_syn=force_syn,
+            use_aroma=use_aroma
+     )        
 
 
 
