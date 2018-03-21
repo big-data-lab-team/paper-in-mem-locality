@@ -8,7 +8,8 @@ from niworkflows.nipype.interfaces import (
 from fmriprep.interfaces import(
         DerivativesDataSink, MakeMidthickness, FSInjectBrainExtracted,
         FSDetectInputs, NormalizeSurf, GiftiNameSource, TemplateDimensions, Conform, Reorient,
-        ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo
+        ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo,
+        SubjectSummary
 )
 from fmriprep.utils.misc import add_suffix, fix_multi_T1w_source_name
 from fmriprep.utils.bids import collect_participants, collect_data
@@ -257,6 +258,25 @@ def bids_info(s, work_dir):
     
     return (s[0], b)
 
+def summary(s, subjects_dir, output_spaces, template, work_dir):
+    print('Executing SubjectSummary interface')
+
+    ssum = SubjectSummary(output_spaces=output_spaces, template=template)
+    ssum.inputs.subjects_dir = subjects_dir
+    ssum.inputs.t1w = s[1][0].t1w
+    ssum.inputs.t2w = s[1][0].t2w
+    ssum.inputs.bold = s[1][0].bold
+    ssum.inputs.subject_id = s[1][1].subject_id
+
+    ssum._run_interface(get_runtime(work_dir))
+
+    out = ssum._list_outputs()
+    
+    SS = namedtuple('SS', ['subject_id', 'out_report'])
+    subs= SS(subject_id=out['subject_id'], out_report=out['out_report'])
+    
+    return (s[0], subs)
+
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
                  freesurfer, output_spaces, template, medial_surface_nan,
@@ -274,7 +294,12 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
     bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir))
 
     bidsinfo_rdd = bidssrc_rdd.map(lambda x: bids_info(x, work_dir))
-    print(bidsinfo_rdd.collect())
+
+    summary_rdd = bidssrc_rdd.join(bidsinfo_rdd) \
+                             .map(lambda x: summary(x, subjects_dir, output_spaces, 
+                                                    template, work_dir))
+
+    print(summary_rdd.collect())
 
 def main():
     parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
