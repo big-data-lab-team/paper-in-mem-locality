@@ -10,7 +10,7 @@ from fmriprep.interfaces import(
         FSDetectInputs, NormalizeSurf, GiftiNameSource, TemplateDimensions, Conform, Reorient,
         ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo
 )
-from fmriprep.utils.misc import add_suffix
+from fmriprep.utils.misc import add_suffix, fix_multi_T1w_source_name
 from fmriprep.utils.bids import collect_participants, collect_data
 from pkg_resources import resource_filename as pkgr
 from collections import namedtuple
@@ -244,6 +244,18 @@ def bidssrc(s, anat_only, work_dir):
 
     return (s[0], b)
 
+def bids_info(s, work_dir):
+    print('Executing BIDSInfo interface')
+
+    binfo = BIDSInfo()
+    binfo.inputs.in_file = fix_multi_T1w_source_name(s[1].t1w)
+    binfo._run_interface(get_runtime(work_dir))
+    out = binfo._list_outputs()
+    
+    BInfo = namedtuple('BInfo', ['subject_id'])
+    b = BInfo(subject_id=out['subject_id'])
+    
+    return (s[0], b)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
@@ -261,7 +273,8 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
 
     bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir))
 
-    print(bidssrc_rdd.collect())
+    bidsinfo_rdd = bidssrc_rdd.map(lambda x: bids_info(x, work_dir))
+    print(bidsinfo_rdd.collect())
 
 def main():
     parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
