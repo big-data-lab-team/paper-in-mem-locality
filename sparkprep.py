@@ -44,26 +44,6 @@ def get_runtime(interface_dir):
     return runtime
 
 # pipeline activites
-def templateDimensionsTask(part):
-    print('executing template dimensions')
-    in_img = list(part)
-
-    if len(in_img) > 0:
-        td = TemplateDimensions()
-        td.inputs.t1w_list = in_img
-
-        interface_dir = workdir + '/TemplateDimensions'
-
-        td._run_interface(get_runtime(interface_dir))
-   
-    target_zooms = [td._results['target_zooms']] * len(td._results['t1w_valid_list'])
-    target_shapes = [td._results['target_shape']] * len(td._results['t1w_valid_list'])
-    out_report = [td._results['out_report']] * len(td._results['t1w_valid_list'])
-
-    output = [(a, (b, c, d)) for a, b, c, d in zip(td._results['t1w_valid_list'],
-                                                target_zooms, target_shapes, out_report)]
-    return output
-
 def t1ConformTask(img):
     print('executing t1 conform')
     c = Conform()
@@ -277,15 +257,58 @@ def summary(s, subjects_dir, output_spaces, template, work_dir):
     
     return (s[0], subs)
 
+def format_anat_preproc_rdd(s, subjects_dir):
+
+    AP = namedtuple('AP', ['subjects_dir', 't1w', 't2w', 'subject_id'])
+    a = AP(subjects_dir=subjects_dir, t1w=s[1][0].t1w, t2w=s[1][0].t2w, subject_id=s[1][1].subject_id)
+
+    return (s[0], a)
+
+def format_anat_template_rdd(s):
+
+    AT = namedtuple('AT', ['t1w'])
+    a = AT(t1w=s[1].t1w)
+
+    return (s[0], a)
+
+def t1_template_dimensions(s, work_dir):
+    print('executing template dimensions')
+
+    td = TemplateDimensions()
+    td.inputs.t1w_list = s[1].t1w
+
+    td._run_interface(get_runtime(work_dir))
+  
+    TemplateDim = namedtuple('TemplateDim', ['target_zooms', 'target_shape', 'out_report'])
+    tempDim = TemplateDim(target_zooms=td._results['target_zooms'],
+                          target_shape=td._results['target_shape'],
+                          out_report=td._results['out_report'])
+
+    return (s[0], tempDim)
+
+def init_spark_anat_template(rdd, longitudinal, work_dir):
+    
+    t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir))
+
+    print(t1_tempdim_rdd.collect())
+
+def init_spark_anat_preproc(rdd, skull_strip_template, output_spaces, template,
+                            longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
+
+    anat_template_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
+
+    init_spark_anat_template(anat_template_rdd, longitudinal, work_dir)
+
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
                  freesurfer, output_spaces, template, medial_surface_nan,
                  hires, use_bbr, bold2t1w_dof, fmap_bspline, fmap_demean,
                  use_syn, force_syn, use_aroma, output_grid_ref, wf_name='sprep_wf'):
     
-    subjects_dir = fsdir(output_dir, output_spaces, work_dir)
-
     sc = create_spark_context(wf_name)
+
+    subjects_dir = fsdir(output_dir, output_spaces, work_dir)
+    reportlets_dir = os.path.join(work_dir, 'reportlets')
 
     subject_rdd = sc.parallelize(subject_list) \
             .map(lambda x: get_subject_data(x, task_id, bids_dir)) \
@@ -299,7 +322,22 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                              .map(lambda x: summary(x, subjects_dir, output_spaces, 
                                                     template, work_dir))
 
-    print(summary_rdd.collect())
+    anat_preproc_rdd = bidssrc_rdd.join(summary_rdd) \
+                                  .map(lambda x: format_anat_preproc_rdd(x, subjects_dir))
+
+    
+    init_spark_anat_preproc(rdd=anat_preproc_rdd,
+                            skull_strip_template=skull_strip_template,
+                            output_spaces=output_spaces,
+                            template=template,
+                            longitudinal=longitudinal,
+                            freesurfer=freesurfer,
+                            reportlets_dir=reportlets_dir,
+                            output_dir=output_dir,
+                            work_dir=work_dir
+                            )
+    
+    #print(anat_preproc_rdd.collect())
 
 def main():
     parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
