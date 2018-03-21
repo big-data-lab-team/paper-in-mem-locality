@@ -11,18 +11,21 @@ from fmriprep.interfaces import(
         ConcatAffines, RefineBrainMask,
 )
 from fmriprep.utils.misc import add_suffix
+from fmriprep.utils.bids import collect_participants
 from pkg_resources import resource_filename as pkgr
-import os, bunch, socket
+import os, bunch, socket, argparse
 
 
 # Global variables to eventually be adapted for command-line tool
-workflow_name = 'test_anat_template'
-input_t1w = [os.path.abspath('data/ds052/sub-01/anat/sub-01_run-01_T1w.nii.gz'),
-        os.path.abspath('data/ds052/sub-01/anat/sub-01_run-02_T1w.nii.gz')]
-longitudinal=False
-num_t1w=2
-workdir=os.getcwd() + '/' +  workflow_name
-omp_nthreads=1
+#workflow_name = 'test_anat_template'
+#input_t1w = [os.path.abspath('data/ds052/sub-01/anat/sub-01_run-01_T1w.nii.gz'),
+#        os.path.abspath('data/ds052/sub-01/anat/sub-01_run-02_T1w.nii.gz')]
+#longitudinal=False
+#num_t1w=2
+#workdir=os.getcwd() + '/' +  workflow_name
+#omp_nthreads=1
+
+
 # helper functions
 
 def get_runtime(interface_dir):
@@ -164,7 +167,7 @@ def create_spark_context(workflow_name):
     conf = SparkConf().setAppName(workflow_name)
     return SparkContext.getOrCreate(conf=conf)
 
-def execute_wf(workflow_name, workdir):
+def execute_anat_template_wf(workflow_name, workdir):
 
     if not os.path.isdir(workdir):
         os.makedirs(workdir)
@@ -204,4 +207,57 @@ def execute_wf(workflow_name, workdir):
     print(t1_merge_rdd)
 
     
-execute_wf(workflow_name, workdir)
+#execute_anat_template_wf(workflow_name, workdir)
+
+def execute_main_wf():
+    pass
+
+def main():
+    parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
+    parser.add_argument('bids_dir', action='store', help='root BIDS directory')
+    parser.add_argument('output_dir', action='store', help='output directory')
+    parser.add_argument('analysis_level', choices=['participant'],help='BIDS analysis level (participant only)')
+    parser.add_argument('--anat-only', action='store_true', help='run anatomical workflow only')
+    parser.add_argument('-w', '--work-dir', action='store', help='working directory')
+
+    args = parser.parse_args()
+
+    # currently forced parameters (some of which are only pertinent to fmriprep and will be removed)
+
+    ignore = []
+    anat_only = args.anat_only
+    longitudinal = False
+    t2s_coreg = False
+    skull_strip_template = 'OASIS'
+    run_reconall = True
+    output_space = ['template', 'fsaverage5']
+    template = 'MNI152NLin2009cAsym'
+    medial_surface_nan = False
+    output_grid_reference = None
+    hires = True
+    use_bbr = None
+    bold2t1w_dof = 9
+    fmap_bspline = False
+    fmap_no_demean = True
+    use_syn_sdc = False
+    force_sym = False
+    use_aroma = False
+
+    output_dir = os.path.abspath(args.output_dir)
+    work_dir = os.path.abspath(args.work_dir)
+
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(work_dir, exist_ok=True)
+
+    bids_dir = os.path.abspath(args.bids_dir)
+    subject_list = collect_participants(bids_dir, 
+            participant_label=None)
+
+
+    print(subject_list)
+
+
+
+
+if __name__ == '__main__':
+    main()
