@@ -15,6 +15,7 @@ from fmriprep.utils.misc import add_suffix, fix_multi_T1w_source_name
 from fmriprep.utils.bids import collect_participants, collect_data
 from pkg_resources import resource_filename as pkgr
 from collections import namedtuple
+from multiprocessing import cpu_count
 import os, bunch, socket, argparse
 
 
@@ -43,91 +44,9 @@ def get_runtime(interface_dir):
                         )
     return runtime
 
-# pipeline activites
-
-def n4BiasFieldCorrectionTask(img):
-    print('exectuing n4 bias field correction')
-    n4 = N4BiasFieldCorrection(dimension=3, copy_header=True)
-
-    n4.inputs.input_image = img[0]
-
-    interface_dir = workdir + '/N4BiasFieldCorrection'
-
-    # a terrible workaround to ensure that nipype looks 
-    # for the output dir in the correct directory
-    curr_dir = os.getcwd()
-
-    os.chdir(interface_dir)
-
-    n4._run_interface(get_runtime(interface_dir))
-
-    out = n4._list_outputs()
-    
-    os.chdir(curr_dir)
-
-    # returning input image so it can be joined to other RDDs later on 
-    return (n4.inputs.input_image, out['output_image'])
-
-def robustTemplateTask(part):
-    part = list(part)
-    print('executing robust template task')
-    t1_merge = fs.RobustTemplate(auto_detect_sensitivity=True,
-                      initial_timepoint=1,      # For deterministic behavior
-                      intensity_scaling=True,   # 7-DOF (rigid + intensity)
-                      subsample_threshold=200,
-                      fixed_timepoint=not longitudinal,
-                      no_iteration=not longitudinal,
-                      transform_outputs=True,
-                      )
-
-
-    def _set_threads(in_list, maximum):
-        return min(len(in_list), maximum)
-
-    out_file = [i[0] for i in part]
-    output_image = [i[1][1] for i in part]
-    
-
-    t1_merge.inputs.num_threads = _set_threads(out_file, omp_nthreads)
-    t1_merge.inputs.out_file = add_suffix(out_file, '_template')
-    t1_merge.inputs.in_files = output_image
-
-    interface_dir = workdir + '/RobustTemplate'
-
-    # a terrible workaround to ensure that nipype looks 
-    # for the output dir in the correct directory
-    curr_dir = os.getcwd()
-
-    os.chdir(interface_dir)
-
-    t1_merge._run_interface(get_runtime(interface_dir))
-    out = t1_merge._list_outputs()
-
-    os.chdir(curr_dir)
-
-    rt_out_file = [out['out_file']] * len(out_file)
-    transform_out = [out['transform_outputs']] * len(out_file)
-
-    output = [(a, (b, c)) for a, b, c in zip(out_file, rt_out_file, transform_out)]
-
-    return output
 
    
-def outputIdentityTaskSingleT1(part):
-    print('Collecting outputs for single T1 image')
-    part = list(part)
-
-    out_id = createOutputInterfaceObj()
-
-    out_id.inputs.template_transforms = [pkgr('fmriprep', 'data/itkIdentityTransform.txt')]
-    out_id.inputs.t1_template = part[0][0]
-    out_id.inputs.t1w_valid_list = [i[0] for i in part]
-    out_id.inputs.out_report = part[0][1][1][2]
-
-    out = out_id.run()
-
-    return (out.outputs.t1w_valid_list, (out.outputs.t1_template, 
-            out.outputs.template_transforms, out.outputs.out_report))
+#def outputIdentityTaskSingleT1(part):
 
 def createOutputInterfaceObj():
     return niu.IdentityInterface(fields=['t1_template', 't1w_valid_list', 'template_transforms', 'out_report'])
@@ -265,7 +184,10 @@ def t1_template_dimensions(s, work_dir):
     td = TemplateDimensions()
     td.inputs.t1w_list = s[1].t1w
 
-    td._run_interface(get_runtime(work_dir))
+    interface_dir = os.path.join(work_dir, 't1_template_dimensions')
+    os.makedirs(interface_dir, exist_ok=True)
+
+    td._run_interface(get_runtime(interface_dir))
   
     TemplateDim = namedtuple('TemplateDim', ['t1w_valid_list', 'target_zooms', 
                                                 'target_shape', 'out_report'])
@@ -286,14 +208,108 @@ def t1_conform(s, work_dir):
     c.inputs.target_zooms = s[1][1][0]
     c.inputs.target_shape = s[1][1][1]
    
-    c._run_interface(get_runtime(work_dir))
+    interface_dir = os.path.join(work_dir, 't1_conform')
+    os.makedirs(interface_dir, exist_ok=True)
+
+    c._run_interface(get_runtime(interface_dir))
 
     T1Conform = namedtuple('T1Conform', ['out_file', 'transform'])
     tconf = T1Conform(out_file=c._results['out_file'], transform=c._results['transform'])
 
     return (s[0], tconf)
 
-def init_spark_anat_template(rdd, longitudinal, work_dir):
+def t1_template_output_single(s):
+    print('Collecting outputs for single T1 image')
+
+    out_id = createOutputInterfaceObj()
+
+    out_id.inputs.template_transforms = [pkgr('fmriprep', 'data/itkIdentityTransform.txt')]
+
+    def _get_first(in_list):
+        if isinstance(in_list, (list, tuple)):
+            return in_list[0]
+        return in_list
+
+    
+    out_id.inputs.t1_template = _get_first(s[1][0].out_file)
+    out_id.inputs.t1w_valid_list = s[1][1].t1w_valid_list 
+    out_id.inputs.out_report = s[1][1].out_report
+
+    out = out_id.run()
+
+    OutputSingle = namedtuple('OutputSingle', ['t1w_valid_list', 't1_template', 
+                                               'template_transform', 'out_report'])
+    os = OutputSingle(t1w_valid_list=out.outputs.t1w_valid_list, t1_template=out.outputs.t1_template,
+                      template_transform=out.outputs.template_transforms, out_report=out.outputs.out_report)
+
+    return (s[0], os)
+
+def n4_correct(s, work_dir):
+    print('exectuing n4 bias field correction')
+    n4 = N4BiasFieldCorrection(dimension=3, copy_header=True)
+
+    interface_dir = os.path.join(work_dir, 'n4_correct')
+    os.makedirs(interface_dir, exist_ok=True)
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    output_image = []
+
+    for t1_conform in s[1]:
+        n4.inputs.input_image = t1_conform.out_file
+        n4._run_interface(get_runtime(interface_dir))
+        out = n4._list_outputs()
+        output_image.append(out['output_image'])
+    
+    os.chdir(curr_dir)
+
+    # returning input image so it can be joined to other RDDs later on 
+    return (s[0], output_image)
+
+def t1_merge(s, longitudinal, omp_nthreads, work_dir):
+    out_file = [t1conf.out_file for t1conf in s[1][0]]
+    print('executing robust template task')
+    t1m = fs.RobustTemplate(auto_detect_sensitivity=True,
+                            initial_timepoint=1,      # For deterministic behavior
+                            intensity_scaling=True,   # 7-DOF (rigid + intensity)
+                            subsample_threshold=200,
+                            fixed_timepoint=not longitudinal,
+                            no_iteration=not longitudinal,
+                            transform_outputs=True,
+                            )
+
+
+    def _set_threads(in_list, maximum):
+        return min(len(in_list), maximum)
+
+
+    t1m.inputs.num_threads = _set_threads(out_file, omp_nthreads)
+    t1m.inputs.out_file = add_suffix(out_file, '_template')
+    t1m.inputs.in_files = s[1][1]
+
+    interface_dir = os.path.join(work_dir, 'RobustTemplate')
+    os.makedirs(interface_dir, exist_ok=True)
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    t1m._run_interface(get_runtime(interface_dir))
+    out = t1m._list_outputs()
+
+    os.chdir(curr_dir)
+
+    T1Merge = namedtuple('T1Merge', ['out_file', 'transform_outputs'])
+    m_out = T1Merge(out['out_file'], out['transform_outputs'])
+
+    return (s[0], m_out) 
+
+
+def init_spark_anat_template(rdd, longitudinal, omp_nthreads, work_dir):
     
     t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir))
     
@@ -306,20 +322,42 @@ def init_spark_anat_template(rdd, longitudinal, work_dir):
     t1_conform_rdd = t1w_list_rdd.join(t1_targets_rdd) \
                                  .map(lambda x: t1_conform(x, work_dir))
 
-    print(t1_conform_rdd.collect())
+    multi_t1w = t1_tempdim_rdd.map(lambda x: (x[0], len(x[1].t1w_valid_list))) \
+                                 .filter(lambda x: x[1] > 1) \
+                                 .map(lambda x: x[0]) \
+                                 .collect()
+   
+    # filter out the subjects that have more than one t1w
+    t1_conform_1_rdd = t1_conform_rdd.filter(lambda x: x[0] not in multi_t1w)
 
-def init_spark_anat_preproc(rdd, skull_strip_template, output_spaces, template,
+    t1_output_rdd = t1_conform_1_rdd.join(t1_tempdim_rdd) \
+                                    .map(t1_template_output_single)
+
+    # filter out the subjects that only have one t1w. 'p1' stands for +1 images
+    t1_conform_p1_rdd = t1_conform_rdd.filter(lambda x: x[0] in multi_t1w)
+   
+    t1p1_conform_grouped_rdd = t1_conform_p1_rdd.groupByKey() \
+                                                .map(lambda x: (x[0], list(x[1])))
+
+    n4_correct_rdd = t1p1_conform_grouped_rdd.map(lambda x: n4_correct(x, work_dir))
+    
+    t1_merge_rdd = t1p1_conform_grouped_rdd.join(n4_correct_rdd) \
+                                           .map(lambda x: t1_merge(x, longitudinal, omp_nthreads, work_dir))
+    
+    print(t1_merge_rdd.collect())
+
+def init_spark_anat_preproc(rdd, skull_strip_template, output_spaces, template, omp_nthreads,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
 
     anat_template_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
 
-    init_spark_anat_template(anat_template_rdd, longitudinal, work_dir)
+    init_spark_anat_template(anat_template_rdd, longitudinal, omp_nthreads, work_dir)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
                  freesurfer, output_spaces, template, medial_surface_nan,
                  hires, use_bbr, bold2t1w_dof, fmap_bspline, fmap_demean,
-                 use_syn, force_syn, use_aroma, output_grid_ref, wf_name='sprep_wf'):
+                 use_syn, force_syn, use_aroma, output_grid_ref, omp_nthreads, wf_name='sprep_wf'):
     
     sc = create_spark_context(wf_name)
 
@@ -350,7 +388,8 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                             freesurfer=freesurfer,
                             reportlets_dir=reportlets_dir,
                             output_dir=output_dir,
-                            work_dir=work_dir
+                            work_dir=work_dir,
+                            omp_nthreads=omp_nthreads
                             )
     
     #print(anat_preproc_rdd.collect())
@@ -385,6 +424,8 @@ def main():
     use_syn_sdc = False
     force_syn = False
     use_aroma = False
+    nthreads = 0
+    omp_nthreads = 0
 
     output_dir = os.path.abspath(args.output_dir)
     work_dir = os.path.abspath(args.work_dir)
@@ -396,6 +437,11 @@ def main():
     subject_list = collect_participants(bids_dir, 
             participant_label=None)
 
+    if nthreads < 1:
+        nthreads = cpu_count()
+
+    if omp_nthreads == 0:
+        omp_nthreads = min(nthreads - 1 if nthreads > 1 else cpu_count(), 8)
 
     init_main_wf(
             subject_list=subject_list,
@@ -420,7 +466,8 @@ def main():
             fmap_demean=fmap_no_demean,
             use_syn=use_syn_sdc,
             force_syn=force_syn,
-            use_aroma=use_aroma
+            use_aroma=use_aroma,
+            omp_nthreads=omp_nthreads
      )        
 
 
