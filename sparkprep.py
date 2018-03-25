@@ -1,11 +1,12 @@
 from pyspark import SparkContext, SparkConf
-from niworkflows.nipype.interfaces.ants import N4BiasFieldCorrection
+from niworkflows.nipype.interfaces.ants import BrainExtraction, N4BiasFieldCorrection
 from niworkflows.nipype.interfaces import (
     utility as niu,
     freesurfer as fs,
     c3,
     base
 )
+from niworkflows.data import get_ants_oasis_template_ras
 from fmriprep.interfaces import(
         DerivativesDataSink, MakeMidthickness, FSInjectBrainExtracted,
         FSDetectInputs, NormalizeSurf, GiftiNameSource, TemplateDimensions, Conform, Reorient,
@@ -19,15 +20,6 @@ from collections import namedtuple
 from multiprocessing import cpu_count
 import os, bunch, socket, argparse
 
-
-# Global variables to eventually be adapted for command-line tool
-#workflow_name = 'test_anat_template'
-#input_t1w = [os.path.abspath('data/ds052/sub-01/anat/sub-01_run-01_T1w.nii.gz'),
-#        os.path.abspath('data/ds052/sub-01/anat/sub-01_run-02_T1w.nii.gz')]
-#longitudinal=False
-#num_t1w=2
-#workdir=os.getcwd() + '/' +  workflow_name
-#omp_nthreads=1
 
 
 # helper functions
@@ -394,6 +386,35 @@ def fsl_to_itk(s,work_dir):
 
     return (s[0], f)
 
+def t1_skull_strip(s, brain_template, brain_probability_mask, extraction_registration_mask, work_dir):
+    print("executing Brain Extraction")
+
+    ss = BrainExtraction(dimension=3, use_floatingpoint_precision=1, debug=False, keep_temporary_files=1)
+    interface_dir = os.path.join(work_dir, s[0], 't1_skull_strip')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+    
+    ss.inputs.brain_template = brain_template
+    ss.inputs.brain_probability_mask = brain_probability_mask
+    ss.inputs.extraction_registration_mask = extraction_registration_mask
+    ss.inputs.anatomical_image = s[1].t1_template 
+
+    ss._run_interface(get_runtime(interface_dir))
+    out = ss._list_outputs()
+
+    SkullStrip = namedtuple('SkullStrip', ['BrainExtractionMask', 'BrainExtractionBrain',
+                                           'BrainExtractionSegmentation', 'N4Corrected0'])
+    sstrip = SkullStrip(out['BrainExtractionMask'], out['BrainExtractionBrain'],
+                        out['BrainExtractionSegmentation'], out['N4Corrected0'])
+
+    return (s[0], sstrip)
+
 def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     
     t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir)) \
@@ -460,14 +481,34 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
                                .map(t1_template_output_multiple) \
                                .union(t1_output_rdd)
 
-    print(output_rdd.collect())
+    return output_rdd
+
+def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir):
+
+    #if skull_strip_template = OASIS. Taken directly from fmriprep
+    template_dir = get_ants_oasis_template_ras()
+    brain_template = os.path.join(template_dir, 'T_template0.nii.gz')
+    brain_probability_mask = os.path.join(
+                                template_dir, 'T_template0_BrainCerebellumProbabilityMask.nii.gz')
+    extraction_registration_mask = os.path.join(
+                                template_dir, 'T_template0_BrainCerebellumRegistrationMask.nii.gz')
+
+    t1_skull_strip_rdd = rdd.map(lambda x: t1_skull_strip(x, brain_template,
+                                            brain_probability_mask, extraction_registration_mask, work_dir))
+
+    print(t1_skull_strip_rdd.collect())
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
 
     anat_template_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
 
-    init_spark_anat_template(sc, anat_template_rdd, longitudinal, omp_nthreads, work_dir)
+    anat_template_rdd = init_spark_anat_template(sc, anat_template_rdd, longitudinal, omp_nthreads, work_dir) \
+                        .cache()
+
+    skull_strip_ants_rdd = init_skull_strip_ants(sc, anat_template_rdd, skull_strip_template, omp_nthreads, work_dir)
+
+
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
