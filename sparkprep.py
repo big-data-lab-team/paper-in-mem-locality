@@ -177,6 +177,7 @@ def t1_template_output_single(s):
 
     out_id.inputs.template_transforms = [pkgr('fmriprep', 'data/itkIdentityTransform.txt')]
 
+    # function taken from fmriprep
     def _get_first(in_list):
         if isinstance(in_list, (list, tuple)):
             return in_list[0]
@@ -253,6 +254,7 @@ def t1_merge(s, longitudinal, omp_nthreads, work_dir):
                             )
 
 
+    # taken from fmriprep
     def _set_threads(in_list, maximum):
         return min(len(in_list), maximum)
 
