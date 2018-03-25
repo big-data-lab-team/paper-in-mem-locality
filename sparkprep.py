@@ -3,6 +3,7 @@ from niworkflows.nipype.interfaces.ants import N4BiasFieldCorrection
 from niworkflows.nipype.interfaces import (
     utility as niu,
     freesurfer as fs,
+    c3,
     base
 )
 from fmriprep.interfaces import(
@@ -246,7 +247,7 @@ def t1_template_output_single(s):
 
 def n4_correct(s, work_dir):
     print('exectuing n4 bias field correction')
-    n4 = N4BiasFieldCorrection(dimension=3, copy_header=True)
+    n4 = N4BiasFieldCorrection(dimension=3, copy_header=False)
 
     interface_dir = os.path.join(work_dir, 'n4_correct')
     os.makedirs(interface_dir, exist_ok=True)
@@ -272,6 +273,7 @@ def n4_correct(s, work_dir):
 def t1_merge(s, longitudinal, omp_nthreads, work_dir):
     out_file = [t1conf.out_file for t1conf in s[1][0]]
     print('executing robust template task')
+    print('**********', s)
     t1m = fs.RobustTemplate(auto_detect_sensitivity=True,
                             initial_timepoint=1,      # For deterministic behavior
                             intensity_scaling=True,   # 7-DOF (rigid + intensity)
@@ -290,7 +292,7 @@ def t1_merge(s, longitudinal, omp_nthreads, work_dir):
     t1m.inputs.out_file = add_suffix(out_file, '_template')
     t1m.inputs.in_files = s[1][1]
 
-    interface_dir = os.path.join(work_dir, 'RobustTemplate')
+    interface_dir = os.path.join(work_dir, 't1_merge')
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -303,15 +305,121 @@ def t1_merge(s, longitudinal, omp_nthreads, work_dir):
 
     os.chdir(curr_dir)
 
-    T1Merge = namedtuple('T1Merge', ['out_file', 'transform_outputs'])
-    m_out = T1Merge(out['out_file'], out['transform_outputs'])
+    T1Merge = namedtuple('T1Merge', ['out_file', 'transform_outputs', 'in_files'])
+    m_out = T1Merge(out['out_file'], out['transform_outputs'], s[1][1])
 
     return (s[0], m_out) 
 
+def t1_reorient(s, work_dir):
+    print('executing reorient')
+    r = Reorient()
 
-def init_spark_anat_template(rdd, longitudinal, omp_nthreads, work_dir):
+    interface_dir = os.path.join(work_dir, 't1_reorient')
+    os.makedirs(interface_dir, exist_ok=True)
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    r.inputs.in_file = s[1].out_file
+    r._run_interface(get_runtime(interface_dir))
+    out = r._list_outputs()
     
-    t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir))
+    T1Reorient = namedtuple('T1Reorient', ['out_file', 'transform'])
+    ro = T1Reorient(out_file=out['out_file'], transform=out['transform'])
+    os.chdir(curr_dir)
+
+    # returning input image so it can be joined to other RDDs later on 
+    return (s[0], ro)
+
+def lta_to_fsl(s, work_dir):
+    print('executing LTA Convert')
+    lta = fs.utils.LTAConvert(out_fsl=True)
+    sub_dir_name = "_".join(os.path.basename(s[2]).split('.')[0].split('_')[:2])
+    
+    interface_dir = os.path.join(
+                            work_dir, 
+                            'lta_to_fsl',
+                            sub_dir_name
+                            )
+
+    os.makedirs(interface_dir, exist_ok=True)
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    lta.inputs.in_lta = s[1]
+    lta._run_interface(get_runtime(interface_dir))
+    out = lta._list_outputs()
+    
+    LTAConvert = namedtuple('LTAConvert', ['out_fsl', 'run'])
+    l = LTAConvert(out_fsl=out['out_fsl'], run=sub_dir_name)
+    os.chdir(curr_dir)
+
+    # returning input image so it can be joined to other RDDs later on 
+    return (s[0], l)
+
+def concat_affines(s, work_dir):
+    print('executing Concat Affines')
+
+    ca = ConcatAffines(3, invert=True)
+    interface_dir = os.path.join(work_dir, 'concat_affines', s[1][0][1].run)
+
+    os.makedirs(interface_dir, exist_ok=True)
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    ca.inputs.mat_AtoB = s[1][0][0].transform
+    ca.inputs.mat_BtoC = s[1][0][1].out_fsl
+    ca.inputs.mat_CtoD = s[1][1].transform
+
+    ca._run_interface(get_runtime(interface_dir))
+    out = ca._list_outputs()
+
+    ConcatAff = namedtuple('ConcatAff', ['out_mat','run'])
+    c = ConcatAff(out_mat=out['out_mat'], run=s[1][0][1].run)
+    os.chdir(curr_dir)
+
+    return (s[0], c)
+
+def fsl_to_itk(s,work_dir):
+    print('executing C3d Affine Tool')
+
+    fi = c3.C3dAffineTool(fsl2ras=True, itk_transform=True)
+    interface_dir = os.path.join(work_dir, 'fsl_to_itk', s[1][0][1].run)
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    fi.inputs.source_file = s[1][0][0]
+    fi.inputs.reference_file = s[1][1].out_file
+    fi.inputs.transform_file = s[1][0][1].out_mat
+
+    fi._run_interface(get_runtime(interface_dir))
+    out = fi._list_outputs()
+
+    Fsl2Itk = namedtuple('Fsl2Itk', ['itk_transform'])
+    f = Fsl2Itk(itk_transform=out['itk_transform'])
+
+    os.chdir(curr_dir)
+
+    return (s[0], f)
+
+def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
+    
+    t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir)) \
+                        .cache()
     
     # create an tuple for each existing t1w image in RDD
     t1w_list_rdd = t1_tempdim_rdd.flatMap(lambda x: 
@@ -334,24 +442,47 @@ def init_spark_anat_template(rdd, longitudinal, omp_nthreads, work_dir):
                                     .map(t1_template_output_single)
 
     # filter out the subjects that only have one t1w. 'p1' stands for +1 images
-    t1_conform_p1_rdd = t1_conform_rdd.filter(lambda x: x[0] in multi_t1w)
+    t1_conform_p1_rdd = t1_conform_rdd.filter(lambda x: x[0] in multi_t1w) \
+                                      .cache()
    
     t1p1_conform_grouped_rdd = t1_conform_p1_rdd.groupByKey() \
                                                 .map(lambda x: (x[0], list(x[1])))
 
     n4_correct_rdd = t1p1_conform_grouped_rdd.map(lambda x: n4_correct(x, work_dir))
-    
+   
     t1_merge_rdd = t1p1_conform_grouped_rdd.join(n4_correct_rdd) \
-                                           .map(lambda x: t1_merge(x, longitudinal, omp_nthreads, work_dir))
-    
-    print(t1_merge_rdd.collect())
+                                           .map(lambda x: t1_merge(x, longitudinal, omp_nthreads, work_dir)) \
+                                           .cache()
 
-def init_spark_anat_preproc(rdd, skull_strip_template, output_spaces, template, omp_nthreads,
+    t1_reorient_rdd = t1_merge_rdd.map(lambda x: t1_reorient(x, work_dir))
+
+    lta_to_fsl_rdd = t1_merge_rdd.flatMap(lambda x: 
+                           [(a,b,c) for a,b,c in zip([x[0]]*len(x[1].transform_outputs), x[1].transform_outputs,x[1].in_files)]) \
+                           .map(lambda x: lta_to_fsl(x, work_dir))
+
+    # run without submitting
+    concat_affines_prep = t1_conform_p1_rdd.join(lta_to_fsl_rdd) \
+                                          .join(t1_reorient_rdd) \
+                                          .filter(lambda x: x[1][0][1].run in x[1][0][0].out_file) \
+                                          .collect()
+
+    concat_affines_seq = [concat_affines(el, work_dir) for el in concat_affines_prep]
+
+    concat_affines_rdd = sc.parallelize(concat_affines_seq)
+
+    fsl_to_itk_rdd = t1w_list_rdd.join(concat_affines_rdd) \
+                                 .join(t1_reorient_rdd) \
+                                 .filter(lambda x: x[1][0][1].run in x[1][0][0]) \
+                                 .map(lambda x: fsl_to_itk(x, work_dir))
+
+    print(fsl_to_itk_rdd.collect())
+
+def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
 
     anat_template_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
 
-    init_spark_anat_template(anat_template_rdd, longitudinal, omp_nthreads, work_dir)
+    init_spark_anat_template(sc, anat_template_rdd, longitudinal, omp_nthreads, work_dir)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
@@ -365,10 +496,10 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
     reportlets_dir = os.path.join(work_dir, 'reportlets')
 
     subject_rdd = sc.parallelize(subject_list) \
-            .map(lambda x: get_subject_data(x, task_id, bids_dir)) \
-            .cache()
+            .map(lambda x: get_subject_data(x, task_id, bids_dir))
 
-    bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir))
+    bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir)) \
+                             .cache()
 
     bidsinfo_rdd = bidssrc_rdd.map(lambda x: bids_info(x, work_dir))
 
@@ -380,7 +511,9 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                                   .map(lambda x: format_anat_preproc_rdd(x, subjects_dir))
 
     
-    init_spark_anat_preproc(rdd=anat_preproc_rdd,
+    init_spark_anat_preproc(
+                            sc=sc,
+                            rdd=anat_preproc_rdd,
                             skull_strip_template=skull_strip_template,
                             output_spaces=output_spaces,
                             template=template,
