@@ -56,47 +56,6 @@ def create_spark_context(workflow_name):
     conf = SparkConf().setAppName(workflow_name)
     return SparkContext.getOrCreate(conf=conf)
 
-def execute_anat_template_wf(workflow_name, workdir):
-
-    if not os.path.isdir(workdir):
-        os.makedirs(workdir)
-
-    sc = create_spark_context(workflow_name)
-
-    temp_dim_rdd = sc.parallelize(input_t1w) \
-                    .coalesce(1) \
-                    .mapPartitions(templateDimensionsTask) \
-                    .cache()
-
-    t1_conform_rdd = temp_dim_rdd.repartition(8) \
-                    .map(t1ConformTask) \
-                    .cache()
-
-    out_rdd = t1_conform_rdd.coalesce(1) \
-                            .join(temp_dim_rdd) \
-                            .cache()
-    if num_t1w == 1:
-        out_rdd = out_rdd.coalesce(1) \
-                         .mapPartitions(
-                                 outputIdentityTaskSingleT1
-                                 ) \
-                         .collect()
-        return out_rdd
-
-    # fmriprep code running on single proc for reproducibility
-    n4_correct_rdd = t1_conform_rdd.coalesce(1) \
-                                   .map(n4BiasFieldCorrectionTask)
-
-    # joined rdd takes format (input_image, (template, corrected))
-    t1_merge_rdd = t1_conform_rdd.join(n4_correct_rdd) \
-                                 .coalesce(1) \
-                                 .mapPartitions(robustTemplateTask) \
-                                 .collect()
-
-    print(t1_merge_rdd)
-
-    
-
 def fsdir(output_dir, output_spaces, work_dir):
     print('Executing BIDSFreeSurferDir interface')
 
@@ -185,7 +144,7 @@ def t1_template_dimensions(s, work_dir):
     td = TemplateDimensions()
     td.inputs.t1w_list = s[1].t1w
 
-    interface_dir = os.path.join(work_dir, 't1_template_dimensions')
+    interface_dir = os.path.join(work_dir, s[0], 't1_template_dimensions')
     os.makedirs(interface_dir, exist_ok=True)
 
     td._run_interface(get_runtime(interface_dir))
@@ -209,7 +168,7 @@ def t1_conform(s, work_dir):
     c.inputs.target_zooms = s[1][1][0]
     c.inputs.target_shape = s[1][1][1]
    
-    interface_dir = os.path.join(work_dir, 't1_conform')
+    interface_dir = os.path.join(work_dir, s[0], 't1_conform')
     os.makedirs(interface_dir, exist_ok=True)
 
     c._run_interface(get_runtime(interface_dir))
@@ -220,7 +179,7 @@ def t1_conform(s, work_dir):
     return (s[0], tconf)
 
 def t1_template_output_single(s):
-    print('Collecting outputs for single T1 image')
+    print('Collecting outputs for single-subject w/ single T1 image')
 
     out_id = createOutputInterfaceObj()
 
@@ -239,9 +198,28 @@ def t1_template_output_single(s):
     out = out_id.run()
 
     OutputSingle = namedtuple('OutputSingle', ['t1w_valid_list', 't1_template', 
-                                               'template_transform', 'out_report'])
+                                               'template_transforms', 'out_report'])
     os = OutputSingle(t1w_valid_list=out.outputs.t1w_valid_list, t1_template=out.outputs.t1_template,
-                      template_transform=out.outputs.template_transforms, out_report=out.outputs.out_report)
+                      template_transforms=out.outputs.template_transforms, out_report=out.outputs.out_report)
+
+    return (s[0], os)
+
+def t1_template_output_multiple(s):
+    print('Collecting outputs for single-subject w/ multiple T1 images')
+
+    out_id = createOutputInterfaceObj()
+
+    out_id.inputs.t1_template = s[1][1].out_file
+    out_id.inputs.t1w_valid_list = s[1][0][0].t1w_valid_list 
+    out_id.inputs.out_report = s[1][0][0].out_report
+    out_id.inputs.template_transforms = [fi.itk_transform for fi in s[1][0][1]]
+
+    out = out_id.run()
+
+    OutputSingle = namedtuple('OutputSingle', ['t1w_valid_list', 't1_template', 
+                                               'template_transforms', 'out_report'])
+    os = OutputSingle(t1w_valid_list=out.outputs.t1w_valid_list, t1_template=out.outputs.t1_template,
+                      template_transforms=out.outputs.template_transforms, out_report=out.outputs.out_report)
 
     return (s[0], os)
 
@@ -249,7 +227,7 @@ def n4_correct(s, work_dir):
     print('exectuing n4 bias field correction')
     n4 = N4BiasFieldCorrection(dimension=3, copy_header=False)
 
-    interface_dir = os.path.join(work_dir, 'n4_correct')
+    interface_dir = os.path.join(work_dir, s[0], 'n4_correct')
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -273,7 +251,6 @@ def n4_correct(s, work_dir):
 def t1_merge(s, longitudinal, omp_nthreads, work_dir):
     out_file = [t1conf.out_file for t1conf in s[1][0]]
     print('executing robust template task')
-    print('**********', s)
     t1m = fs.RobustTemplate(auto_detect_sensitivity=True,
                             initial_timepoint=1,      # For deterministic behavior
                             intensity_scaling=True,   # 7-DOF (rigid + intensity)
@@ -292,7 +269,7 @@ def t1_merge(s, longitudinal, omp_nthreads, work_dir):
     t1m.inputs.out_file = add_suffix(out_file, '_template')
     t1m.inputs.in_files = s[1][1]
 
-    interface_dir = os.path.join(work_dir, 't1_merge')
+    interface_dir = os.path.join(work_dir, s[0], 't1_merge')
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -314,7 +291,7 @@ def t1_reorient(s, work_dir):
     print('executing reorient')
     r = Reorient()
 
-    interface_dir = os.path.join(work_dir, 't1_reorient')
+    interface_dir = os.path.join(work_dir, s[0], 't1_reorient')
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -340,6 +317,7 @@ def lta_to_fsl(s, work_dir):
     
     interface_dir = os.path.join(
                             work_dir, 
+                            s[0],
                             'lta_to_fsl',
                             sub_dir_name
                             )
@@ -366,7 +344,7 @@ def concat_affines(s, work_dir):
     print('executing Concat Affines')
 
     ca = ConcatAffines(3, invert=True)
-    interface_dir = os.path.join(work_dir, 'concat_affines', s[1][0][1].run)
+    interface_dir = os.path.join(work_dir, s[0], 'concat_affines', s[1][0][1].run)
 
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
@@ -392,7 +370,7 @@ def fsl_to_itk(s,work_dir):
     print('executing C3d Affine Tool')
 
     fi = c3.C3dAffineTool(fsl2ras=True, itk_transform=True)
-    interface_dir = os.path.join(work_dir, 'fsl_to_itk', s[1][0][1].run)
+    interface_dir = os.path.join(work_dir, s[0], 'fsl_to_itk', s[1][0][1].run)
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -454,7 +432,8 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
                                            .map(lambda x: t1_merge(x, longitudinal, omp_nthreads, work_dir)) \
                                            .cache()
 
-    t1_reorient_rdd = t1_merge_rdd.map(lambda x: t1_reorient(x, work_dir))
+    t1_reorient_rdd = t1_merge_rdd.map(lambda x: t1_reorient(x, work_dir)) \
+                                  .cache()
 
     lta_to_fsl_rdd = t1_merge_rdd.flatMap(lambda x: 
                            [(a,b,c) for a,b,c in zip([x[0]]*len(x[1].transform_outputs), x[1].transform_outputs,x[1].in_files)]) \
@@ -473,9 +452,15 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     fsl_to_itk_rdd = t1w_list_rdd.join(concat_affines_rdd) \
                                  .join(t1_reorient_rdd) \
                                  .filter(lambda x: x[1][0][1].run in x[1][0][0]) \
-                                 .map(lambda x: fsl_to_itk(x, work_dir))
+                                 .map(lambda x: fsl_to_itk(x, work_dir)) \
+                                 .groupByKey()
 
-    print(fsl_to_itk_rdd.collect())
+    output_rdd = t1_tempdim_rdd.join(fsl_to_itk_rdd) \
+                               .join(t1_reorient_rdd) \
+                               .map(t1_template_output_multiple) \
+                               .union(t1_output_rdd)
+
+    print(output_rdd.collect())
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
