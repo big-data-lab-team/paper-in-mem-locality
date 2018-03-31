@@ -1,17 +1,20 @@
-from pyspark import SparkContext, SparkConf
+from pyspark import SparkContext, SparkConf, StorageLevel
 from niworkflows.nipype.interfaces.ants import BrainExtraction, N4BiasFieldCorrection
+from niworkflows.interfaces.registration import RobustMNINormalizationRPT
 from niworkflows.nipype.interfaces import (
     utility as niu,
     freesurfer as fs,
     c3,
-    base
+    base,
+    fsl
 )
-from niworkflows.data import get_ants_oasis_template_ras
+from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+import niworkflows.data as nid
 from fmriprep.interfaces import(
         DerivativesDataSink, MakeMidthickness, FSInjectBrainExtracted,
         FSDetectInputs, NormalizeSurf, GiftiNameSource, TemplateDimensions, Conform, Reorient,
         ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo,
-        SubjectSummary
+        SubjectSummary, 
 )
 from fmriprep.utils.misc import add_suffix, fix_multi_T1w_source_name
 from fmriprep.utils.bids import collect_participants, collect_data
@@ -37,10 +40,7 @@ def get_runtime(interface_dir):
                         )
     return runtime
 
-
    
-#def outputIdentityTaskSingleT1(part):
-
 def createOutputInterfaceObj():
     return niu.IdentityInterface(fields=['t1_template', 't1w_valid_list', 'template_transforms', 'out_report'])
 
@@ -215,6 +215,27 @@ def t1_template_output_multiple(s):
                       template_transforms=out.outputs.template_transforms, out_report=out.outputs.out_report)
 
     return (s[0], os)
+
+def t1_skull_strip_output(s):
+    print('Collecting skullstrip outputs')
+
+    # left out out_report as I could not determine which node passes it on to this one
+    out_id = niu.IdentityInterface(fields=['bias_corrected', 'out_file', 'out_mask', 'out_segs'])
+
+    out_id.inputs.bias_corrected = s[1].N4Corrected0
+    out_id.inputs.out_file = s[1].BrainExtractionBrain
+    out_id.inputs.out_mask = s[1].BrainExtractionMask
+    out_id.inputs.out_segs = s[1].BrainExtractionSegmentation
+
+    out = out_id.run()
+
+    Output = namedtuple('Output', ['bias_corrected', 'out_file', 'out_mask',
+                                   'out_segs'])
+    os = Output(bias_corrected=out.outputs.bias_corrected, out_file=out.outputs.out_file,
+                      out_mask=out.outputs.out_mask, out_segs=out.outputs.out_segs)
+
+    return (s[0], os)
+
 
 def n4_correct(s, work_dir):
     print('exectuing n4 bias field correction')
@@ -415,7 +436,154 @@ def t1_skull_strip(s, brain_template, brain_probability_mask, extraction_registr
     sstrip = SkullStrip(out['BrainExtractionMask'], out['BrainExtractionBrain'],
                         out['BrainExtractionSegmentation'], out['N4Corrected0'])
 
+    os.chdir(curr_dir)
+
     return (s[0], sstrip)
+
+def t1_seg(s, work_dir):
+    print("executing FSL fast")
+
+    ts = fsl.FAST(segments=True, no_bias=True, probability_maps=True)
+    interface_dir = os.path.join(work_dir, s[0], 't1_seg')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    ts.inputs.in_files = s[1].out_file
+
+    ts._run_interface(get_runtime(interface_dir))
+    out = ts._list_outputs()
+
+    T1Seg = namedtuple('T1Seg', ['tissue_class_map', 'probability_maps'])
+
+    tseg = T1Seg(out['tissue_class_map'], out['probability_maps'])
+
+    return (s[0], tseg)
+
+def t1_2_mni(s, template_str, work_dir, debug=False):
+    print("executing robust mni normalization RPT")
+
+    t1mni = RobustMNINormalizationRPT(
+                float=True,
+                generate_report=True,
+                flavor='testing' if debug else 'precise',
+                )
+
+    interface_dir = os.path.join(work_dir, s[0], 't1_2_mni')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    t1mni.inputs.template = template_str
+    t1mni.inputs.moving_image = s[1].bias_corrected
+    t1mni.inputs.moving_mask = s[1].out_mask
+
+    t1mni._run_interface(get_runtime(interface_dir))
+    out = t1mni._list_outputs()
+
+    T1_MNI = namedtuple('T1_MNI', ['warped_image', 'composite_transform', 'inverse_composite_transform'])
+    t = T1_MNI(out['warped_image'], out['composite_transform'], out['inverse_composite_transform'])
+
+    os.chdir(curr_dir)
+    return (s[0], t)
+
+def mni_mask(s, ref_img, work_dir):
+    print("executing mni mask")
+
+    mm = ApplyTransforms(dimension=3, default_value=0, float=True,
+            interpolation='MultiLabel')
+
+    interface_dir = os.path.join(work_dir, s[0], 'mni_mask')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    mm.inputs.reference_image = ref_img
+    mm.inputs.input_image = s[1][0].out_mask
+    mm.inputs.transforms = s[1][1].composite_transform
+
+    mm._run_interface(get_runtime(interface_dir))
+    out = mm._list_outputs()
+
+    MNIMask = namedtuple('MNIMask', ['output_image'])
+    m = MNIMask(out['output_image'])
+
+    os.chdir(curr_dir)
+    return (s[0], m)
+
+def mni_seg(s, ref_img, work_dir):
+    print("executing mni seg")
+
+    ms = ApplyTransforms(dimension=3, default_value=0, float=True,
+            interpolation='MultiLabel')
+
+    interface_dir = os.path.join(work_dir, s[0], 'mni_seg')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    ms.inputs.reference_image = ref_img
+    ms.inputs.input_image = s[1][0].tissue_class_map
+    ms.inputs.transforms = s[1][1].composite_transform
+
+    ms._run_interface(get_runtime(interface_dir))
+    out = ms._list_outputs()
+
+    MNISeg = namedtuple('MNISeg', ['output_image'])
+    m = MNISeg(out['output_image'])
+
+    os.chdir(curr_dir)
+    return (s[0], m)
+
+def mni_tpms(s, ref_img, work_dir):
+    print("execution mni tpms")
+
+    mt = ApplyTransforms(dimension=3, default_value=0, float=True,
+            interpolation='Linear')
+
+    sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[-1])
+    interface_dir = os.path.join(work_dir, s[0], 'mni_tpms', sub_dir_name)
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    mt.inputs.reference_image = ref_img
+    mt.inputs.input_image = s[1][0]
+    mt.inputs.transforms = s[1][1].composite_transform
+
+    mt._run_interface(get_runtime(interface_dir))
+    out = mt._list_outputs()
+
+    MNITpms = namedtuple('MNITpms', ['output_image'])
+    m = MNITpms(out['output_image'])
+
+    os.chdir(curr_dir)
+    return (s[0], m)
 
 def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     
@@ -488,7 +656,7 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
 def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir):
 
     #if skull_strip_template = OASIS. Taken directly from fmriprep
-    template_dir = get_ants_oasis_template_ras()
+    template_dir = nid.get_ants_oasis_template_ras()
     brain_template = os.path.join(template_dir, 'T_template0.nii.gz')
     brain_probability_mask = os.path.join(
                                 template_dir, 'T_template0_BrainCerebellumProbabilityMask.nii.gz')
@@ -498,7 +666,9 @@ def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir)
     t1_skull_strip_rdd = rdd.map(lambda x: t1_skull_strip(x, brain_template,
                                             brain_probability_mask, extraction_registration_mask, work_dir))
 
-    print(t1_skull_strip_rdd.collect())
+    output_rdd = t1_skull_strip_rdd.map(t1_skull_strip_output)
+    
+    return output_rdd
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
@@ -508,9 +678,33 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
     anat_template_rdd = init_spark_anat_template(sc, anat_template_rdd, longitudinal, omp_nthreads, work_dir) \
                         .cache()
 
-    skull_strip_ants_rdd = init_skull_strip_ants(sc, anat_template_rdd, skull_strip_template, omp_nthreads, work_dir)
+    skull_strip_ants_rdd = init_skull_strip_ants(sc, anat_template_rdd, skull_strip_template, omp_nthreads, work_dir) \
+                           .cache()
+    
+    # starts differing here from fmriprep as it assumes reconall is not performed
+    t1_seg_rdd = skull_strip_ants_rdd.map(lambda x: t1_seg(x, work_dir)).cache()
 
 
+    if 'template' in output_spaces:
+        template_str = nid.TEMPLATE_MAP[template]
+        ref_img = os.path.join(nid.get_dataset(template_str), '1mm_T1.nii.gz')
+
+        t1_2_mni_rdd = skull_strip_ants_rdd.map(lambda x: t1_2_mni(x, template_str, work_dir)) \
+                                           .cache()
+
+        mni_mask_rdd = skull_strip_ants_rdd \
+                            .join(t1_2_mni_rdd) \
+                            .map(lambda x: mni_mask(x, ref_img, work_dir))
+
+        mni_seg_rdd = t1_seg_rdd \
+                            .join(t1_2_mni_rdd) \
+                            .map(lambda x: mni_seg(x, ref_img, work_dir))
+
+        mni_tpms_rdd = t1_seg_rdd.flatMap(lambda x: [(a,b) for a,b in zip([x[0]]*len(x[1].probability_maps), x[1].probability_maps)]) \
+                                 .join(t1_2_mni_rdd) \
+                                 .map(lambda x: mni_tpms(x, ref_img, work_dir))
+
+        print(mni_tpms_rdd.collect())
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
@@ -572,7 +766,7 @@ def main():
     longitudinal = False
     t2s_coreg = False
     skull_strip_template = 'OASIS'
-    run_reconall = True
+    run_reconall = False
     output_space = ['template', 'fsaverage5']
     template = 'MNI152NLin2009cAsym'
     medial_surface_nan = False
