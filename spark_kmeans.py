@@ -48,13 +48,13 @@ def main():
     # read binary data stored in folder and create an RDD from it
     # will return an RDD with format RDD[(filename, binary_data)]
     imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir)).cache()
+    voxelRDD = imRDD.flatMap(get_voxels).cache()
 
     c_changed = True
     count = 1
     while c_changed:
-        assignments = imRDD.flatMap(lambda x: get_voxels) \
-                           .map(lambda x: get_nearest_centroid(x, centroids)) \
-                           .groupByKey()
+        assignments = voxelRDD.map(lambda x: get_nearest_centroid(x, centroids)) \
+                              .groupByKey()
 
         updated_centroids = sc.parallelize(centroids) \
                               .join(assignments) \
