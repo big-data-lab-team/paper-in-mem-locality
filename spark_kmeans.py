@@ -1,4 +1,5 @@
 from pyspark import SparkContext, SparkConf
+from io import BytesIO
 import argparse, os
 import nibabel as nib
 
