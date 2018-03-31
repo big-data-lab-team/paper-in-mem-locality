@@ -1,6 +1,6 @@
 from pyspark import SparkContext, SparkConf
 from io import BytesIO
-import argparse, os
+import argparse, os, sys
 import nibabel as nib
 
 def get_nearest_centroid(d, c):
@@ -19,7 +19,7 @@ def get_nearest_centroid(d, c):
 
 def update_centroids(d):
 
-    updated = sum(d[1])/len(d)
+    updated = sum(d)/len(d)
 
     return updated
 
@@ -48,6 +48,7 @@ def main():
     # read binary data stored in folder and create an RDD from it
     # will return an RDD with format RDD[(filename, binary_data)]
     imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir)).cache()
+
     voxelRDD = imRDD.flatMap(get_voxels).cache()
 
     c_changed = True
@@ -57,16 +58,18 @@ def main():
                               .groupByKey()
 
         updated_centroids = sc.parallelize(centroids) \
+                              .zipWithIndex() \
                               .join(assignments) \
-                              .map(update_centroids) \
+                              .map(lambda x: update_centroids(x[1][1])) \
                               .collect()
 
-        c_changed = bool(set(centroids).intersection(update_centroid))
+        c_changed = not bool(set(centroids).intersection(updated_centroids))
 
         centroids = updated_centroids
 
         if c_changed:
-            print("it", count)
+            print("it", count, centroid)
+            it += 1
         
     print(centroids)
 
