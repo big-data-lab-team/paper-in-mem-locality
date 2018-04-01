@@ -856,6 +856,32 @@ def ds_mni_tpms(s, suffix_fmt, template, output_dir):
 
     dds._run_interface(get_runtime(output_dir))
 
+def ds_summary_report(s, reportlets_dir):
+    print("executing ds_summary_report")
+
+    dds = DerivativesDataSink(base_directory=reportlets_dir,
+            suffix='summary')
+
+    dds.inputs.source_file = fix_multi_T1w_source_name(s[1][0].t1w)
+    dds.inputs.in_file = s[1][1].out_report
+
+    dds._run_interface(get_runtime(reportlets_dir))
+
+def ds_about_report(s, version, command, reportlets_dir):
+    print("executing ds_about_report")
+
+    about = AboutSummary(version=version,
+            command=' '.join(command))
+
+    about._run_interface(get_runtime(reportlets_dir))
+
+    out = about._list_outputs()
+
+    dds.inputs.source_file = fix_multi_T1w_source_name(s[1].t1w)
+    dds.inputs.in_file = out['out_report']
+
+    dds._run_interface(get_runtime(reportlets_dir))
+
 def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     
     t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir)) \
@@ -1065,11 +1091,13 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
     bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir)) \
                              .cache()
 
-    bidsinfo_rdd = bidssrc_rdd.map(lambda x: bids_info(x, work_dir))
+    bidsinfo_data = bidssrc_rdd.collect()
+    bidsinfo_rdd = sc.parallelize([bids_info(x, work_dir) for x in bidsinfo_data])
 
-    summary_rdd = bidssrc_rdd.join(bidsinfo_rdd) \
-                             .map(lambda x: summary(x, subjects_dir, output_spaces, 
-                                                    template, work_dir))
+    summary_data = bidssrc_rdd.join(bidsinfo_rdd) \
+                              .collect()
+
+    summary_rdd = sc.parallelize([summary(x, subjects_dir, output_spaces,template, work_dir) for x in summary_data])
 
     anat_preproc_rdd = bidssrc_rdd.join(summary_rdd) \
                                   .map(lambda x: format_anat_preproc_rdd(x, subjects_dir))
@@ -1088,6 +1116,11 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                             work_dir=work_dir,
                             omp_nthreads=omp_nthreads
                             )
+
+    summary_report_data = bidssrc_rdd.join(summary) \
+                                     .collect()
+    [ds_summary_report(x, reportlets_dir) for x in summary_report_data]
+    [ds_about_report(x, __version__, sys.argv, reportlets_dir) for x in bidsinfo_data]     
     
     #print(anat_preproc_rdd.collect())
 
