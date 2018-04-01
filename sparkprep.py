@@ -706,6 +706,155 @@ def ds_t1_2_mni_report(s, reportlets_dir):
 
     #
 
+def t1_name(s, work_dir):
+    print("executing t1_name")
+
+    tn = niu.Function(function=fix_multi_T1w_source_name)
+
+    interface_dir = os.path.join(work_dir, s[0], 't1_name')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    tn.inputs.in_files = s[1].source_files
+
+    tn._run_interface(get_runtime(interface_dir))
+    out = tn._list_outputs()
+
+    T1Name = namedtuple('T1Name', ['out'])
+    t = T1Name(out['out'])
+
+    os.chdir(curr_dir)
+    return (s[0], t)
+
+def ds_t1_template_transforms(s, suffix_fmt, output_dir):
+    print("executing ds_t1_template_transforms")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix=suffix_fmt('orig', 'T1w', 'affine'))
+
+    dds.inputs.source_file = s[1][0]
+    dds.inputs.in_file = s[1][1]
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_preproc(s, output_dir):
+    print("executing ds_t1_preproc")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix='preproc')
+
+    dds.inputs.source_file = s[1][0].t1_preproc
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mask(s, output_dir):
+    print("executing ds_t1_mask")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix='brainmask')
+
+    dds.inputs.source_file = s[1][0].t1_mask
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_seg(s, output_dir):
+    print("executing ds_t1_seg")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix='dtissue')
+
+    dds.inputs.source_file = s[1][0].t1_seg
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni_warp(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni_warp")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'T1w', 'warp')
+
+def ds_t1_tpms(s, output_dir):
+    print("executing ds_t1_tpms")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix='class-{extra_value}_probtissue')
+  
+    dds.inputs.source_file = s[1][0].t1_tpms
+    dds.inputs.in_file = s[1][1].out
+    ds_mni_tpms.inputs.extra_values = ['CSF', 'GM', 'WM']
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni_warp(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni_warp")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix=suffix_fmt(template, 'warp'))
+
+    dds.inputs.source_file = s[1][0].t1_2_mni_forward_transform
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni_inv_warp(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni_inv_warp")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'T1w', 'warp'))
+
+    dds.inputs.source_file = s[1][0].t1_2_mni_reverse_transform
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+        suffix=suffix_fmt(template, 'preproc'))
+
+    dds.inputs.source_file = s[1][0].t1_2_mni
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_mni_mask(s, suffix_fmt, template, output_dir):
+    print("executing ds_mni_mask")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'brainmask'))
+
+    dds.inputs.source_file = s[1][0].mni_mask
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_mni_seg(s, suffix_fmt, template, output_dir):
+    print("executing ds_mni_seg")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'dtissue'))
+
+    dds.inputs.source_file = s[1][0].mni_seg
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_mni_tpms(s, suffix_fmt, template, output_dir):
+    print("executing ds_mni_tpms")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'class-{extra_value}_probtissue'))
+
+    dds.inputs.source_file = s[1][0].mni_tpms
+    dds.inputs.in_file = s[1][1].out
+    dds.inputs.extra_values = ['CSF', 'GM', 'WM']
+
+    dds._run_interface(get_runtime(output_dir))
 
 def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     
@@ -805,12 +954,34 @@ def init_anat_reports(sc, rdd, reportlets_dir, output_spaces, template, freesurf
             ds_t1_2_mni_report_data = ds_t1_2_mni_report(el, reportlets_dir)
 
 def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer):
-   
+  
+    t1_name_rdd = rdd.map(lambda x: t1_name(x, work_dir)).cache()
+
     # for the nodes with "run without submitting"
-    inputs = rdd.collect()
+    inputs = rdd.join(t1_name_rdd).collect()
+
+    tt_inputs = rdd.flatMap(lambda x: [(a,b) for a,b in zip([x[0]]*len(x[1].source_files), 
+                                      x[1].source_files, x[1].t1_template_transforms )]) \
+                                              .collect()
+
+    suffix_fmt_1 = 'space-{}_{}'.format
+    suffix_fmt_2 = 'space-{}_target-{}_{}'.format
+    suffix_fmt_3 = 'target-{}_{}'.format
+
+    for el in tt_inputs:
+        ds_t1_template_transforms(el, suffix_fmt_2, output_dir)
 
     for el in inputs:
-        t1_name_data = t1_name(el)
+        ds_t1_preproc(el, output_dir)
+        ds_t1_mask(el, output_dir)
+        ds_t1_seg(el, output_dir)
+        ds_t1_tpms(el, output_dir)
+        ds_t1_mni_warp(el, suffix_fmt_3, template, output_dir)
+        ds_t1_mni_inv_warp(el, suffix_fmt_2, template, output_dir)
+        ds_t1_mni(el, suffix_fmt_1, template, output_dir)
+        ds_mni_mask(el, suffix_fmt_1, template, output_dir)
+        ds_mni_seg(el, suffix_fmt_1, template, output_dir)
+        ds_mni_tpms(el, suffix_fmt_1, template, output_dir)
 
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
