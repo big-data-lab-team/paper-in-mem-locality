@@ -772,12 +772,6 @@ def ds_t1_seg(s, output_dir):
 
     dds._run_interface(get_runtime(output_dir))
 
-def ds_t1_mni_warp(s, suffix_fmt, template, output_dir):
-    print("executing ds_t1_mni_warp")
-
-    dds = DerivativesDataSink(base_directory=output_dir,
-            suffix=suffix_fmt(template, 'T1w', 'warp')
-
 def ds_t1_tpms(s, output_dir):
     print("executing ds_t1_tpms")
 
