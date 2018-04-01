@@ -9,6 +9,7 @@ from niworkflows.nipype.interfaces import (
     fsl
 )
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+from niworkflows.interfaces.masks import ROIsPlot
 import niworkflows.data as nid
 from fmriprep.interfaces import(
         DerivativesDataSink, MakeMidthickness, FSInjectBrainExtracted,
@@ -129,6 +130,13 @@ def format_anat_template_rdd(s):
 
     return (s[0], a)
 
+def format_anat_reports_rdd(s):
+
+    AR = namedtuple('AR', ['source_file', 't1_conform_report', 'seg_report', 't1_2_mni_report'])
+    a = AR(source_file=fix_multi_T1w_source_name(s[1][0].t1w), t1_conform_report=s[1][1][0].out_report,
+           seg_report=s[1][1][1][0].out, t1_2_mni_report=s[1][1][1][1].out_report)
+
+    return (s[0], a)
 
 def t1_template_dimensions(s, work_dir):
     print('executing template dimensions')
@@ -556,13 +564,13 @@ def mni_seg(s, ref_img, work_dir):
     return (s[0], m)
 
 def mni_tpms(s, ref_img, work_dir):
-    print("execution mni tpms")
+    print("executing mni tpms")
 
     mt = ApplyTransforms(dimension=3, default_value=0, float=True,
             interpolation='Linear')
 
-    sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[-1])
-    interface_dir = os.path.join(work_dir, s[0], 'mni_tpms', sub_dir_name)
+    #sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[-1])
+    interface_dir = os.path.join(work_dir, s[0], 'mni_tpms')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -584,6 +592,98 @@ def mni_tpms(s, ref_img, work_dir):
 
     os.chdir(curr_dir)
     return (s[0], m)
+
+def seg2msks(s, work_dir):
+    print("executing seg2msks")
+
+    sm = niu.Function(function=_seg2msks)
+
+    interface_dir = os.path.join(work_dir, s[0], 'seg2msks')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    sm.inputs.in_file = s[1].tissue_class_map
+
+    sm._run_interface(get_runtime(interface_dir))
+    out = sm._list_outputs()
+
+    Seg2Msks = namedtuple('Seg2Msks', ['out'])
+    m = Seg2Msks(out['out'])
+
+    os.chdir(curr_dir)
+    return (s[0], m)
+
+def seg_rpt(s, work_dir):
+    print("executing seg_rpt")
+
+    sr = ROIsPlot(colors=['r', 'magenta', 'b', 'g'])
+
+    interface_dir = os.path.join(work_dir, s[0], 'seg_rpt')
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    sr.inputs.in_mask = s[1][1].out_mask
+    sr.inputs.in_rois = s[1][0].out
+
+    sr._run_interface(get_runtime(interface_dir))
+    out = sr._list_outputs()
+
+    SegRpt = namedtuple('SegRpt', ['out_report'])
+    r = SegRpt(out['out_report'])
+
+    os.chdir(curr_dir)
+    return (s[0], r)
+
+def ds_t1_conform_report(s, reportlets_dir):
+    print("executing ds_t1_2_mni_report")
+
+    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='conform')
+
+    dds.inputs.source_file = s[1].source_file
+    dds.inputs.in_file = s[1].t1_conform_report
+
+    dds._run_interface(get_runtime(reportlets_dir))
+
+    #return "ds_t1_conform_report subject {}: OK".format(s[0])
+
+def ds_t1_seg_mask_report(s, reportlets_dir):
+    print("executing ds_t1_seg_mask_report")
+
+    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='seg_brainmask')
+
+    dds.inputs.source_file = s[1].source_file
+    dds.inputs.in_file = s[1].seg_report
+
+    dds._run_interface(get_runtime(reportlets_dir))
+
+    #return "ds_t1_seg_mask_report subject {}: OK".format(s[0])
+
+def ds_t1_2_mni_report(s, reportlets_dir):
+    print("executing ds_t1_2_mni_report")
+
+    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='t1_2_mni')
+
+    dds.inputs.source_file = s[1].source_file
+    dds.inputs.in_file = s[1].t1_2_mni_report
+
+    dds._run_interface(get_runtime(reportlets_dir))
+
+    #
+
 
 def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     
@@ -670,16 +770,26 @@ def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir)
     
     return output_rdd
 
+def init_anat_reports(sc, rdd, reportlets_dir, output_spaces, template, freesurfer):
+
+    # run without submitting
+    ds_t1_conform_report_rdd = rdd.map(lambda x: ds_t1_conform_report(x, reportlets_dir)).collect()
+    ds_t1_seg_mask_report_rdd = rdd.map(lambda x: ds_t1_seg_mask_report(x, reportlets_dir)).collect()
+
+    if 'template' in output_spaces:
+        ds_t1_2_mni_report_rdd = rdd.map(lambda x: ds_t1_2_mni_report(x, reportlets_dir)).collect()
+
+
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
                             longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
 
-    anat_template_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
+    init_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
 
-    anat_template_rdd = init_spark_anat_template(sc, anat_template_rdd, longitudinal, omp_nthreads, work_dir) \
+    anat_template_rdd = init_spark_anat_template(sc, init_rdd, longitudinal, omp_nthreads, work_dir) \
                         .cache()
 
     skull_strip_ants_rdd = init_skull_strip_ants(sc, anat_template_rdd, skull_strip_template, omp_nthreads, work_dir) \
-                           .cache()
+                           .persist(StorageLevel.DISK_ONLY)
     
     # starts differing here from fmriprep as it assumes reconall is not performed
     t1_seg_rdd = skull_strip_ants_rdd.map(lambda x: t1_seg(x, work_dir)).cache()
@@ -702,9 +812,28 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
 
         mni_tpms_rdd = t1_seg_rdd.flatMap(lambda x: [(a,b) for a,b in zip([x[0]]*len(x[1].probability_maps), x[1].probability_maps)]) \
                                  .join(t1_2_mni_rdd) \
-                                 .map(lambda x: mni_tpms(x, ref_img, work_dir))
+                                 .map(lambda x: mni_tpms(x, ref_img, work_dir)) \
+                                 .groupByKey() \
+                                 .map(lambda x: (x[0], list(x[1])))
 
-        print(mni_tpms_rdd.collect())
+
+
+        #print(mni_tpms_rdd.collect())
+    
+    seg2msks_rdd = t1_seg_rdd.map(lambda x: seg2msks(x, work_dir))
+
+    seg_rpt_rdd = seg2msks_rdd.join(skull_strip_ants_rdd) \
+                              .map(lambda x: seg_rpt(x, work_dir))
+
+    if 'template' in output_spaces:
+        anat_reports_rdd = init_rdd.join(anat_template_rdd) \
+                                   .join(seg_rpt_rdd) \
+                                   .join(t1_2_mni_rdd)
+
+        anat_reports_rdd = anat_reports_rdd.map(format_anat_reports_rdd)
+
+    init_anat_reports(sc, anat_reports_rdd, reportlets_dir, output_spaces, template, freesurfer)
+
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
