@@ -2,6 +2,7 @@ from pyspark import SparkContext, SparkConf
 from io import BytesIO
 import argparse, os, sys
 import nibabel as nib
+import numpy as np
 
 def get_nearest_centroid(d, c):
 
@@ -33,17 +34,41 @@ def get_voxels(d):
 
     return data.flatten('F')
 
+def save_segmented(d, assignments, out):
+    #read data into nibabel
+    fh = nib.FileHolder(fileobj=BytesIO(d[1]))
+    im = nib.Nifti1Image.from_file_map({'header': fh, 'image': fh})
+
+    data = im.get_data()
+
+    assigned_class = [c[0] for c in assignments] 
+
+    for i in range(0, len(assignments)):
+        assigned_voxels = list(set(assignments[i][1]))
+        data[np.where(np.isin(data,assigned_voxels))] = assigned_class[i]
+
+    im_seg = nib.Nifti1Image(data, im.affine)
+    
+    # save segmented image
+    output_file = os.path.join(out, 'seg-' + os.path.basename(d[0]))
+    nib.save(im_seg, output_file)
+
+    return (output_file, "SAVED")
+        
+
 def main():
     conf = SparkConf().setAppName("Spark kmeans")
     sc = SparkContext.getOrCreate(conf=conf)
 
     parser = argparse.ArgumentParser(description="BigBrain k-means segmentation")
     parser.add_argument('bb_dir',type=str, help='The folder containing BigBrain NIfTI images (local fs only)')
-    #parser.add_argument('output_dir', type=str, help='the folder to save segmented images to (local fs only)')
+    parser.add_argument('output_dir', type=str, help='the folder to save segmented images to (local fs only)')
     args = parser.parse_args()
 
     #fixed centroids to be able to compare with nipype implementation
-    centroids = [0, 26214, 45874.5, 65535]
+    centroids = [50314.747730447438, 5.4095965052460562, 29218.970083958127, 60767.571375735897]
+    #[60741.945981249322, 28998.276891703455, 5.3324138454658172, 49808.209711495881] 
+    #[0, 26214, 45874.5, 65535]
 
     # read binary data stored in folder and create an RDD from it
     # will return an RDD with format RDD[(filename, binary_data)]
@@ -53,6 +78,8 @@ def main():
 
     c_changed = True
     count = 1
+    assignments = None
+
     while c_changed:
         assignments = voxelRDD.map(lambda x: get_nearest_centroid(x, centroids)) \
                               .groupByKey()
@@ -68,10 +95,13 @@ def main():
         centroids = updated_centroids
 
         if c_changed:
-            print("it", count, centroid)
-            it += 1
-        
-    print(centroids)
+            print("it", count, centroids)
+            count += 1
+    
+    assignments = assignments.zipWithIndex().map(lambda x: (x[1], x[0][1])).collect()
+    results = imRDD.map(lambda x: save_segmented(x, assignments, os.path.abspath(args.output_dir))).collect()
+    print("***FINAL CENTROIDS***:", centroids)
+    print(results)
 
 
 
