@@ -138,6 +138,28 @@ def format_anat_reports_rdd(s):
 
     return (s[0], a)
 
+def format_anat_derivatives_rdd(s):
+    '''anat_template_rdd.join(skull_strip_ants_rdd) \
+                        .join(t1_seg_rdd) \
+                        .join(t1_2_mni_rdd) \
+                        .join(mni_mask_rdd) \
+                        .join(mni_seg_rdd) \
+                        .join(mni_tpms_rdd)'''
+
+    AD = namedtuple('AD', ['source_files', 't1_template_transforms', 't1_preproc', 't1_mask',
+                           't1_seg', 't1_tpms', 't1_2_mni_forward_transform', 't1_2_mni_reverse_transform',
+                           't1_2_mni', 'mni_mask', 'mni_seg', 'mni_tpms'])
+
+    a = AD(source_files=s[1][0].t1w_valid_list, t1_template_transforms=s[1][0].template_transforms,
+           t1_preproc=s[1][1][0].bias_corrected, t1_mask=s[1][1][0].out_mask,
+           t1_seg=s[1][1][1][0].tissue_class_map, t1_tpms=s[1][1][1][0].probability_maps,
+           t1_2_mni_forward_transform=s[1][1][1][1][0].composite_transform,
+           t1_2_mni_reverse_transform=s[1][1][1][1][0].inverse_composite_transform,
+           t1_2_mni=s[1][1][1][1][0].warped_image, mni_mask=s[1][1][1][1][1][0].output_image,
+           mni_seg=s[1][1][1][1][1][1][0].output_image, mni_tpms=s[1][1][1][1][1][1][1].output_image)
+
+    return (s[0], a)
+
 def t1_template_dimensions(s, work_dir):
     print('executing template dimensions')
 
@@ -648,7 +670,7 @@ def seg_rpt(s, work_dir):
 def ds_t1_conform_report(s, reportlets_dir):
     print("executing ds_t1_2_mni_report")
 
-    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    #reportlets_dir = os.path.join(reportlets_dir, s[0])
     dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='conform')
 
     dds.inputs.source_file = s[1].source_file
@@ -661,7 +683,7 @@ def ds_t1_conform_report(s, reportlets_dir):
 def ds_t1_seg_mask_report(s, reportlets_dir):
     print("executing ds_t1_seg_mask_report")
 
-    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    #reportlets_dir = os.path.join(reportlets_dir, s[0])
     dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='seg_brainmask')
 
     dds.inputs.source_file = s[1].source_file
@@ -674,7 +696,7 @@ def ds_t1_seg_mask_report(s, reportlets_dir):
 def ds_t1_2_mni_report(s, reportlets_dir):
     print("executing ds_t1_2_mni_report")
 
-    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    #reportlets_dir = os.path.join(reportlets_dir, s[0])
     dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='t1_2_mni')
 
     dds.inputs.source_file = s[1].source_file
@@ -773,11 +795,22 @@ def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir)
 def init_anat_reports(sc, rdd, reportlets_dir, output_spaces, template, freesurfer):
 
     # run without submitting
-    ds_t1_conform_report_rdd = rdd.map(lambda x: ds_t1_conform_report(x, reportlets_dir)).collect()
-    ds_t1_seg_mask_report_rdd = rdd.map(lambda x: ds_t1_seg_mask_report(x, reportlets_dir)).collect()
+    inputs = rdd.collect()
 
-    if 'template' in output_spaces:
-        ds_t1_2_mni_report_rdd = rdd.map(lambda x: ds_t1_2_mni_report(x, reportlets_dir)).collect()
+    for el in inputs:
+        ds_t1_conform_report_data = ds_t1_conform_report(el, reportlets_dir)
+        ds_t1_seg_mask_report_data = ds_t1_seg_mask_report(el, reportlets_dir)
+
+        if 'template' in output_spaces:
+            ds_t1_2_mni_report_data = ds_t1_2_mni_report(el, reportlets_dir)
+
+def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer):
+   
+    # for the nodes with "run without submitting"
+    inputs = rdd.collect()
+
+    for el in inputs:
+        t1_name_data = t1_name(el)
 
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
@@ -832,8 +865,17 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
 
         anat_reports_rdd = anat_reports_rdd.map(format_anat_reports_rdd)
 
-    init_anat_reports(sc, anat_reports_rdd, reportlets_dir, output_spaces, template, freesurfer)
+        init_anat_reports(sc, anat_reports_rdd, reportlets_dir, output_spaces, template, freesurfer)
 
+        anat_derivatives_rdd = anat_template_rdd.join(skull_strip_ants_rdd) \
+                                                .join(t1_seg_rdd) \
+                                                .join(t1_2_mni_rdd) \
+                                                .join(mni_mask_rdd) \
+                                                .join(mni_seg_rdd) \
+                                                .join(mni_tpms_rdd) \
+                                                .map(lambda x: format_anat_derivatives_rdd).cache()
+
+        init_anat_derivatives(sc, anat_derivatives_rdd, output_dir, output_spaces, template, freesurfer)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
