@@ -59,6 +59,10 @@ def binarize_chunk(chunk, threshold, output_dir=None):
     im = nib.load(chunk)
     data = im.get_data()
 
+    # to avoid returning a blank image
+    if data.max() == 1:
+        threshold = 0
+
     data = np.where(data > threshold, 1, 0)
     
     bin_im = nib.Nifti1Image(data, im.affine)

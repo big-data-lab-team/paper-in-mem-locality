@@ -1,5 +1,7 @@
 import nibabel as nib
+import numpy as np
 import os
+import argparse
 from pyspark import SparkContext, SparkConf
 from io import BytesIO
 
@@ -14,40 +16,51 @@ def read_img(filename, data):
 
 def binarize_data(filename, data, affine, threshold):
 
-    for i in range(0,len(data)):
-        for j in range(0, len(data[0])):
-            for k in range(0, len(data[0][0])):
-                if data[i][j][k] > threshold:
-                    data[i][j][k] = 1
-                else:
-                    data[i][j][k] = 0
+    # in order to keep original binarization instead
+    # of returning a blank image
+    if data.max() == 1:
+        threshold = 0
+
+    data = np.where(data > threshold, 1, 0)
 
     return (filename, data, affine)
 
-def loop_binarize(rdd, threshold, iterations):
-    for i in range(0, iterations):
-        rdd = rdd.map(lambda x: binarize_data(x[0], x[1], x[2], threshold))
-    return rdd
-
-def save_binarized(filename, data, affine):
+def save_binarized(filename, data, affine, output_dir):
     
     im = nib.Nifti1Image(data, affine)
-    nib.save(im, 'bin-' + os.path.basename(filename))
-    return ('SUCCESS')
+    out_fn = os.path.join(output_dir, 'bin-' + os.path.basename(filename))
+    nib.save(im, out_fn)
+    return (out_fn, 'SUCCESS')
 
-conf = SparkConf().setAppName("Spark binarization")
-sc = SparkContext.getOrCreate(conf=conf)
-threshold = 500
-
-# read binary data stored in folder and create an RDD from it
-imRDD = sc.binaryFiles('file://' + os.path.abspath('./bb_data'))
-bin1 = loop_binarize(imRDD.map(lambda x: read_img(x[0], x[1])), threshold, 2) \
-       .map(lambda x: save_binarized(x[0], x[1], x[2])) \
-       .collect()
-
-print(bin1)
+def main():
+    parser = argparse.ArgumentParser(description="BigBrain binarization")
+    parser.add_argument('bb_dir',type=str, 
+        help='The folder containing BigBrain NIfTI images (local fs only)')
+    parser.add_argument('output_dir', type=str, 
+        help='the folder to save binarized images to (local fs only)')
+    parser.add_argument('threshold', type=int, help='binarization threshold')
     
+    args = parser.parse_args()
+
+    conf = SparkConf().setAppName("Spark binarization")
+    sc = SparkContext.getOrCreate(conf=conf)
+
+    threshold = args.threshold
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # read binary data stored in folder and create an RDD from it
+    imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir)) \
+              .map(lambda x: read_img(x[0], x[1]))
+
+    for i in range(10):
+        imRDD = imRDD.map(lambda x: binarize_data(x[0], x[1], x[2], threshold))
 
 
+    imRDD.map(lambda x: save_binarized(x[0], x[1], x[2], args.output_dir)) \
+         .collect()
+
+    
+if __name__ == '__main__':
+    main()
 
 
