@@ -138,6 +138,28 @@ def format_anat_reports_rdd(s):
 
     return (s[0], a)
 
+def format_anat_derivatives_rdd(s):
+    '''anat_template_rdd.join(skull_strip_ants_rdd) \
+                        .join(t1_seg_rdd) \
+                        .join(t1_2_mni_rdd) \
+                        .join(mni_mask_rdd) \
+                        .join(mni_seg_rdd) \
+                        .join(mni_tpms_rdd)'''
+
+    AD = namedtuple('AD', ['source_files', 't1_template_transforms', 't1_preproc', 't1_mask',
+                           't1_seg', 't1_tpms', 't1_2_mni_forward_transform', 't1_2_mni_reverse_transform',
+                           't1_2_mni', 'mni_mask', 'mni_seg', 'mni_tpms'])
+
+    a = AD(source_files=s[1][0].t1w_valid_list, t1_template_transforms=s[1][0].template_transforms,
+           t1_preproc=s[1][1][0].bias_corrected, t1_mask=s[1][1][0].out_mask,
+           t1_seg=s[1][1][1][0].tissue_class_map, t1_tpms=s[1][1][1][0].probability_maps,
+           t1_2_mni_forward_transform=s[1][1][1][1][0].composite_transform,
+           t1_2_mni_reverse_transform=s[1][1][1][1][0].inverse_composite_transform,
+           t1_2_mni=s[1][1][1][1][0].warped_image, mni_mask=s[1][1][1][1][1][0].output_image,
+           mni_seg=s[1][1][1][1][1][1][0].output_image, mni_tpms=s[1][1][1][1][1][1][1].output_image)
+
+    return (s[0], a)
+
 def t1_template_dimensions(s, work_dir):
     print('executing template dimensions')
 
@@ -648,7 +670,7 @@ def seg_rpt(s, work_dir):
 def ds_t1_conform_report(s, reportlets_dir):
     print("executing ds_t1_2_mni_report")
 
-    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    #reportlets_dir = os.path.join(reportlets_dir, s[0])
     dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='conform')
 
     dds.inputs.source_file = s[1].source_file
@@ -661,7 +683,7 @@ def ds_t1_conform_report(s, reportlets_dir):
 def ds_t1_seg_mask_report(s, reportlets_dir):
     print("executing ds_t1_seg_mask_report")
 
-    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    #reportlets_dir = os.path.join(reportlets_dir, s[0])
     dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='seg_brainmask')
 
     dds.inputs.source_file = s[1].source_file
@@ -674,7 +696,7 @@ def ds_t1_seg_mask_report(s, reportlets_dir):
 def ds_t1_2_mni_report(s, reportlets_dir):
     print("executing ds_t1_2_mni_report")
 
-    reportlets_dir = os.path.join(reportlets_dir, s[0])
+    #reportlets_dir = os.path.join(reportlets_dir, s[0])
     dds = DerivativesDataSink(base_directory=reportlets_dir, suffix='t1_2_mni')
 
     dds.inputs.source_file = s[1].source_file
@@ -684,6 +706,175 @@ def ds_t1_2_mni_report(s, reportlets_dir):
 
     #
 
+def t1_name(s, work_dir):
+    print("executing t1_name")
+
+    tn = niu.Function(function=fix_multi_T1w_source_name)
+
+    interface_dir = os.path.join(work_dir, s[0], 't1_name')
+
+    os.makedirs(interface_dir, exist_ok=True)
+
+    # a terrible workaround to ensure that nipype looks 
+    # for the output dir in the correct directory
+    curr_dir = os.getcwd()
+
+    os.chdir(interface_dir)
+
+    tn.inputs.in_files = s[1].source_files
+
+    tn._run_interface(get_runtime(interface_dir))
+    out = tn._list_outputs()
+
+    T1Name = namedtuple('T1Name', ['out'])
+    t = T1Name(out['out'])
+
+    os.chdir(curr_dir)
+    return (s[0], t)
+
+def ds_t1_template_transforms(s, suffix_fmt, output_dir):
+    print("executing ds_t1_template_transforms")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix=suffix_fmt('orig', 'T1w', 'affine'))
+
+    dds.inputs.source_file = s[1][0]
+    dds.inputs.in_file = s[1][1]
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_preproc(s, output_dir):
+    print("executing ds_t1_preproc")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix='preproc')
+
+    dds.inputs.source_file = s[1][0].t1_preproc
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mask(s, output_dir):
+    print("executing ds_t1_mask")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix='brainmask')
+
+    dds.inputs.source_file = s[1][0].t1_mask
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_seg(s, output_dir):
+    print("executing ds_t1_seg")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix='dtissue')
+
+    dds.inputs.source_file = s[1][0].t1_seg
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_tpms(s, output_dir):
+    print("executing ds_t1_tpms")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix='class-{extra_value}_probtissue')
+  
+    dds.inputs.source_file = s[1][0].t1_tpms
+    dds.inputs.in_file = s[1][1].out
+    ds_mni_tpms.inputs.extra_values = ['CSF', 'GM', 'WM']
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni_warp(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni_warp")
+
+    dds = DerivativesDataSink(base_directory=output_dir, suffix=suffix_fmt(template, 'warp'))
+
+    dds.inputs.source_file = s[1][0].t1_2_mni_forward_transform
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni_inv_warp(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni_inv_warp")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'T1w', 'warp'))
+
+    dds.inputs.source_file = s[1][0].t1_2_mni_reverse_transform
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_t1_mni(s, suffix_fmt, template, output_dir):
+    print("executing ds_t1_mni")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+        suffix=suffix_fmt(template, 'preproc'))
+
+    dds.inputs.source_file = s[1][0].t1_2_mni
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_mni_mask(s, suffix_fmt, template, output_dir):
+    print("executing ds_mni_mask")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'brainmask'))
+
+    dds.inputs.source_file = s[1][0].mni_mask
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_mni_seg(s, suffix_fmt, template, output_dir):
+    print("executing ds_mni_seg")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'dtissue'))
+
+    dds.inputs.source_file = s[1][0].mni_seg
+    dds.inputs.in_file = s[1][1].out
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_mni_tpms(s, suffix_fmt, template, output_dir):
+    print("executing ds_mni_tpms")
+
+    dds = DerivativesDataSink(base_directory=output_dir,
+            suffix=suffix_fmt(template, 'class-{extra_value}_probtissue'))
+
+    dds.inputs.source_file = s[1][0].mni_tpms
+    dds.inputs.in_file = s[1][1].out
+    dds.inputs.extra_values = ['CSF', 'GM', 'WM']
+
+    dds._run_interface(get_runtime(output_dir))
+
+def ds_summary_report(s, reportlets_dir):
+    print("executing ds_summary_report")
+
+    dds = DerivativesDataSink(base_directory=reportlets_dir,
+            suffix='summary')
+
+    dds.inputs.source_file = fix_multi_T1w_source_name(s[1][0].t1w)
+    dds.inputs.in_file = s[1][1].out_report
+
+    dds._run_interface(get_runtime(reportlets_dir))
+
+def ds_about_report(s, version, command, reportlets_dir):
+    print("executing ds_about_report")
+
+    about = AboutSummary(version=version,
+            command=' '.join(command))
+
+    about._run_interface(get_runtime(reportlets_dir))
+
+    out = about._list_outputs()
+
+    dds.inputs.source_file = fix_multi_T1w_source_name(s[1].t1w)
+    dds.inputs.in_file = out['out_report']
+
+    dds._run_interface(get_runtime(reportlets_dir))
 
 def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     
@@ -773,11 +964,44 @@ def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir)
 def init_anat_reports(sc, rdd, reportlets_dir, output_spaces, template, freesurfer):
 
     # run without submitting
-    ds_t1_conform_report_rdd = rdd.map(lambda x: ds_t1_conform_report(x, reportlets_dir)).collect()
-    ds_t1_seg_mask_report_rdd = rdd.map(lambda x: ds_t1_seg_mask_report(x, reportlets_dir)).collect()
+    inputs = rdd.collect()
 
-    if 'template' in output_spaces:
-        ds_t1_2_mni_report_rdd = rdd.map(lambda x: ds_t1_2_mni_report(x, reportlets_dir)).collect()
+    for el in inputs:
+        ds_t1_conform_report_data = ds_t1_conform_report(el, reportlets_dir)
+        ds_t1_seg_mask_report_data = ds_t1_seg_mask_report(el, reportlets_dir)
+
+        if 'template' in output_spaces:
+            ds_t1_2_mni_report_data = ds_t1_2_mni_report(el, reportlets_dir)
+
+def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer):
+  
+    t1_name_rdd = rdd.map(lambda x: t1_name(x, work_dir)).cache()
+
+    # for the nodes with "run without submitting"
+    inputs = rdd.join(t1_name_rdd).collect()
+
+    tt_inputs = rdd.flatMap(lambda x: [(a,b) for a,b in zip([x[0]]*len(x[1].source_files), 
+                                      x[1].source_files, x[1].t1_template_transforms )]) \
+                                              .collect()
+
+    suffix_fmt_1 = 'space-{}_{}'.format
+    suffix_fmt_2 = 'space-{}_target-{}_{}'.format
+    suffix_fmt_3 = 'target-{}_{}'.format
+
+    for el in tt_inputs:
+        ds_t1_template_transforms(el, suffix_fmt_2, output_dir)
+
+    for el in inputs:
+        ds_t1_preproc(el, output_dir)
+        ds_t1_mask(el, output_dir)
+        ds_t1_seg(el, output_dir)
+        ds_t1_tpms(el, output_dir)
+        ds_t1_mni_warp(el, suffix_fmt_3, template, output_dir)
+        ds_t1_mni_inv_warp(el, suffix_fmt_2, template, output_dir)
+        ds_t1_mni(el, suffix_fmt_1, template, output_dir)
+        ds_mni_mask(el, suffix_fmt_1, template, output_dir)
+        ds_mni_seg(el, suffix_fmt_1, template, output_dir)
+        ds_mni_tpms(el, suffix_fmt_1, template, output_dir)
 
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
@@ -832,8 +1056,17 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
 
         anat_reports_rdd = anat_reports_rdd.map(format_anat_reports_rdd)
 
-    init_anat_reports(sc, anat_reports_rdd, reportlets_dir, output_spaces, template, freesurfer)
+        init_anat_reports(sc, anat_reports_rdd, reportlets_dir, output_spaces, template, freesurfer)
 
+        anat_derivatives_rdd = anat_template_rdd.join(skull_strip_ants_rdd) \
+                                                .join(t1_seg_rdd) \
+                                                .join(t1_2_mni_rdd) \
+                                                .join(mni_mask_rdd) \
+                                                .join(mni_seg_rdd) \
+                                                .join(mni_tpms_rdd) \
+                                                .map(lambda x: format_anat_derivatives_rdd).cache()
+
+        init_anat_derivatives(sc, anat_derivatives_rdd, output_dir, output_spaces, template, freesurfer)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
@@ -852,11 +1085,13 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
     bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir)) \
                              .cache()
 
-    bidsinfo_rdd = bidssrc_rdd.map(lambda x: bids_info(x, work_dir))
+    bidsinfo_data = bidssrc_rdd.collect()
+    bidsinfo_rdd = sc.parallelize([bids_info(x, work_dir) for x in bidsinfo_data])
 
-    summary_rdd = bidssrc_rdd.join(bidsinfo_rdd) \
-                             .map(lambda x: summary(x, subjects_dir, output_spaces, 
-                                                    template, work_dir))
+    summary_data = bidssrc_rdd.join(bidsinfo_rdd) \
+                              .collect()
+
+    summary_rdd = sc.parallelize([summary(x, subjects_dir, output_spaces,template, work_dir) for x in summary_data])
 
     anat_preproc_rdd = bidssrc_rdd.join(summary_rdd) \
                                   .map(lambda x: format_anat_preproc_rdd(x, subjects_dir))
@@ -875,6 +1110,11 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                             work_dir=work_dir,
                             omp_nthreads=omp_nthreads
                             )
+
+    summary_report_data = bidssrc_rdd.join(summary) \
+                                     .collect()
+    [ds_summary_report(x, reportlets_dir) for x in summary_report_data]
+    [ds_about_report(x, __version__, sys.argv, reportlets_dir) for x in bidsinfo_data]     
     
     #print(anat_preproc_rdd.collect())
 
