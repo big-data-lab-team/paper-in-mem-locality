@@ -3,6 +3,27 @@ from io import BytesIO
 import argparse, os
 import glob
 
+def binarize_chunk(chunk, threshold, output_dir=None):
+    import nibabel as nib
+    import numpy as np
+    import os
+
+    im = nib.load(chunk)
+    data = im.get_data()
+
+    # to avoid returning a blank image
+    if data.max() == 1:
+        threshold = 0
+
+    data = np.where(data > threshold, 1, 0)
+    
+    bin_im = nib.Nifti1Image(data, im.affine)
+
+    bin_file = os.path.basename(chunk) 
+    nib.save(bin_im, bin_file)
+
+    return os.path.abspath(bin_file)
+
 def main():
     parser = argparse.ArgumentParser(description="BigBrain binarization")
 
@@ -50,27 +71,6 @@ def main():
         binarized_1 = binarized_2
 
     wf.run(plugin='MultiProc')
-
-def binarize_chunk(chunk, threshold, output_dir=None):
-    import nibabel as nib
-    import numpy as np
-    import os
-
-    im = nib.load(chunk)
-    data = im.get_data()
-
-    # to avoid returning a blank image
-    if data.max() == 1:
-        threshold = 0
-
-    data = np.where(data > threshold, 1, 0)
-    
-    bin_im = nib.Nifti1Image(data, im.affine)
-
-    bin_file = os.path.basename(chunk) 
-    nib.save(bin_im, bin_file)
-
-    return os.path.abspath(bin_file)
 
 if __name__ == '__main__':
     main()
