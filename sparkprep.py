@@ -1119,7 +1119,7 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                             omp_nthreads=omp_nthreads
                             )
 
-    summary_report_data = bidssrc_rdd.join(summary) \
+    summary_report_data = bidssrc_rdd.join(summary_rdd) \
                                      .collect()
     [ds_summary_report(x, reportlets_dir) for x in summary_report_data]
     [ds_about_report(x, __version__, sys.argv, reportlets_dir) for x in bidsinfo_data]     
