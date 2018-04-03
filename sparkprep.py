@@ -24,7 +24,7 @@ from pkg_resources import resource_filename as pkgr
 from collections import namedtuple
 from multiprocessing import cpu_count
 import os, bunch, socket, argparse
-
+from fmriprep.info import __version__
 
 
 # helper functions
@@ -659,11 +659,9 @@ def seg_rpt(s, work_dir):
     curr_dir = os.getcwd()
 
     os.chdir(interface_dir)
-    print(s[1])
     sr.inputs.in_file = s[1][0][0].t1_template
     sr.inputs.in_mask = s[1][1].out_mask
     sr.inputs.in_rois = s[1][0][1].out
-    print('*****', s[1][1].out_mask, s[1][0], '*****')
 
     sr._run_interface(get_runtime(interface_dir))
     out = sr._list_outputs()
