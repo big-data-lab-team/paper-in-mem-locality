@@ -62,6 +62,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="BigBrain k-means segmentation")
     parser.add_argument('bb_dir',type=str, help='The folder containing BigBrain NIfTI images (local fs only)')
+    parser.add_argument('iters', type=int, help='maximum number of kmean iterations')
     parser.add_argument('output_dir', type=str, help='the folder to save segmented images to (local fs only)')
     args = parser.parse_args()
 
@@ -80,7 +81,7 @@ def main():
     count = 1
     assignments = None
 
-    while c_changed:
+    while c_changed or count > args.iters:
         assignments = voxelRDD.map(lambda x: get_nearest_centroid(x, centroids)) \
                               .groupByKey()
 
@@ -96,7 +97,7 @@ def main():
 
         if c_changed:
             print("it", count, centroids)
-            count += 1
+        count += 1
     
     assignments = assignments.zipWithIndex().map(lambda x: (x[1], x[0][1])).collect()
     results = imRDD.map(lambda x: save_segmented(x, assignments, os.path.abspath(args.output_dir))).collect()
