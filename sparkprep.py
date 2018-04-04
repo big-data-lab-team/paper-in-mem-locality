@@ -25,7 +25,7 @@ from collections import namedtuple
 from multiprocessing import cpu_count
 import os, bunch, socket, argparse
 from fmriprep.info import __version__
-
+import sys
 
 # helper functions
 
@@ -866,15 +866,18 @@ def ds_summary_report(s, reportlets_dir):
 
     dds._run_interface(get_runtime(reportlets_dir))
 
-def ds_about_report(s, version, command, reportlets_dir):
+def ds_about_report(s, version, cmd, reportlets_dir):
     print("executing ds_about_report")
 
     about = AboutSummary(version=version,
-            command=' '.join(command))
+            command=' '.join(cmd))
 
     about._run_interface(get_runtime(reportlets_dir))
 
     out = about._list_outputs()
+
+    dds = DerivativesDataSink(base_directory=reportlets_dir,
+                        suffix='about')
 
     dds.inputs.source_file = fix_multi_T1w_source_name(s[1].t1w)
     dds.inputs.in_file = out['out_report']
