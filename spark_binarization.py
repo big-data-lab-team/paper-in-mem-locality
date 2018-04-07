@@ -12,9 +12,9 @@ def read_img(filename, data):
 
     data = im.get_data()
 
-    return (filename, data, im.affine)
+    return (filename, data, (im.affine, im.header))
 
-def binarize_data(filename, data, affine, threshold):
+def binarize_data(filename, data, metadata, threshold):
 
     # in order to keep original binarization instead
     # of returning a blank image
@@ -23,11 +23,11 @@ def binarize_data(filename, data, affine, threshold):
 
     data = np.where(data > threshold, 1, 0)
 
-    return (filename, data, affine)
+    return (filename, data, metadata)
 
-def save_binarized(filename, data, affine, output_dir):
+def save_binarized(filename, data, metadata, output_dir):
     
-    im = nib.Nifti1Image(data, affine)
+    im = nib.Nifti1Image(data, metadata[0], header=metadata[1])
     out_fn = os.path.join(output_dir, 'bin-' + os.path.basename(filename))
     nib.save(im, out_fn)
     return (out_fn, 'SUCCESS')
