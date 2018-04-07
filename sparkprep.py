@@ -15,16 +15,17 @@ from fmriprep.interfaces import(
         DerivativesDataSink, MakeMidthickness, FSInjectBrainExtracted,
         FSDetectInputs, NormalizeSurf, GiftiNameSource, TemplateDimensions, Conform, Reorient,
         ConcatAffines, RefineBrainMask, BIDSDataGrabber, BIDSFreeSurferDir, BIDSInfo,
-        SubjectSummary, 
+        SubjectSummary, AboutSummary
 )
 from fmriprep.utils.misc import add_suffix, fix_multi_T1w_source_name
 from fmriprep.utils.bids import collect_participants, collect_data
+from fmriprep.workflows.anatomical import _seg2msks
 from pkg_resources import resource_filename as pkgr
 from collections import namedtuple
 from multiprocessing import cpu_count
 import os, bunch, socket, argparse
-
-
+from fmriprep.info import __version__
+import sys
 
 # helper functions
 
@@ -133,8 +134,8 @@ def format_anat_template_rdd(s):
 def format_anat_reports_rdd(s):
 
     AR = namedtuple('AR', ['source_file', 't1_conform_report', 'seg_report', 't1_2_mni_report'])
-    a = AR(source_file=fix_multi_T1w_source_name(s[1][0].t1w), t1_conform_report=s[1][1][0].out_report,
-           seg_report=s[1][1][1][0].out, t1_2_mni_report=s[1][1][1][1].out_report)
+    a = AR(source_file=fix_multi_T1w_source_name(s[1][0][0][0].t1w), t1_conform_report=s[1][0][0][1].out_report,
+           seg_report=s[1][0][1].out_report, t1_2_mni_report=s[1][1].out_report)
 
     return (s[0], a)
 
@@ -150,13 +151,17 @@ def format_anat_derivatives_rdd(s):
                            't1_seg', 't1_tpms', 't1_2_mni_forward_transform', 't1_2_mni_reverse_transform',
                            't1_2_mni', 'mni_mask', 'mni_seg', 'mni_tpms'])
 
-    a = AD(source_files=s[1][0].t1w_valid_list, t1_template_transforms=s[1][0].template_transforms,
-           t1_preproc=s[1][1][0].bias_corrected, t1_mask=s[1][1][0].out_mask,
-           t1_seg=s[1][1][1][0].tissue_class_map, t1_tpms=s[1][1][1][0].probability_maps,
-           t1_2_mni_forward_transform=s[1][1][1][1][0].composite_transform,
-           t1_2_mni_reverse_transform=s[1][1][1][1][0].inverse_composite_transform,
-           t1_2_mni=s[1][1][1][1][0].warped_image, mni_mask=s[1][1][1][1][1][0].output_image,
-           mni_seg=s[1][1][1][1][1][1][0].output_image, mni_tpms=s[1][1][1][1][1][1][1].output_image)
+    tpms = [x.output_image for x in s[1][1]]
+
+    a = AD(source_files=s[1][0][0][0][0][0][0].t1w_valid_list, 
+           t1_template_transforms=s[1][0][0][0][0][0][0].template_transforms,
+           t1_preproc=s[1][0][0][0][0][0][1].bias_corrected, 
+           t1_mask=s[1][0][0][0][0][0][1].out_mask,
+           t1_seg=s[1][0][0][0][0][1].tissue_class_map, t1_tpms=s[1][0][0][0][0][1].probability_maps,
+           t1_2_mni_forward_transform=s[1][0][0][0][1].composite_transform,
+           t1_2_mni_reverse_transform=s[1][0][0][0][1].inverse_composite_transform,
+           t1_2_mni=s[1][0][0][0][1].warped_image, mni_mask=s[1][0][0][1].output_image,
+           mni_seg=s[1][0][1].output_image, mni_tpms=tpms)
 
     return (s[0], a)
 
@@ -521,8 +526,8 @@ def t1_2_mni(s, template_str, work_dir, debug=False):
     t1mni._run_interface(get_runtime(interface_dir))
     out = t1mni._list_outputs()
 
-    T1_MNI = namedtuple('T1_MNI', ['warped_image', 'composite_transform', 'inverse_composite_transform'])
-    t = T1_MNI(out['warped_image'], out['composite_transform'], out['inverse_composite_transform'])
+    T1_MNI = namedtuple('T1_MNI', ['warped_image', 'composite_transform', 'inverse_composite_transform', 'out_report'])
+    t = T1_MNI(out['warped_image'], out['composite_transform'], out['inverse_composite_transform'], out['out_report'])
 
     os.chdir(curr_dir)
     return (s[0], t)
@@ -654,9 +659,9 @@ def seg_rpt(s, work_dir):
     curr_dir = os.getcwd()
 
     os.chdir(interface_dir)
-
+    sr.inputs.in_file = s[1][0][0].t1_template
     sr.inputs.in_mask = s[1][1].out_mask
-    sr.inputs.in_rois = s[1][0].out
+    sr.inputs.in_rois = s[1][0][1].out
 
     sr._run_interface(get_runtime(interface_dir))
     out = sr._list_outputs()
@@ -747,8 +752,8 @@ def ds_t1_preproc(s, output_dir):
 
     dds = DerivativesDataSink(base_directory=output_dir, suffix='preproc')
 
-    dds.inputs.source_file = s[1][0].t1_preproc
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_preproc
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -757,8 +762,8 @@ def ds_t1_mask(s, output_dir):
 
     dds = DerivativesDataSink(base_directory=output_dir, suffix='brainmask')
 
-    dds.inputs.source_file = s[1][0].t1_mask
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_mask
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -767,8 +772,8 @@ def ds_t1_seg(s, output_dir):
 
     dds = DerivativesDataSink(base_directory=output_dir, suffix='dtissue')
 
-    dds.inputs.source_file = s[1][0].t1_seg
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_seg
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -778,9 +783,9 @@ def ds_t1_tpms(s, output_dir):
     dds = DerivativesDataSink(base_directory=output_dir,
             suffix='class-{extra_value}_probtissue')
   
-    dds.inputs.source_file = s[1][0].t1_tpms
-    dds.inputs.in_file = s[1][1].out
-    ds_mni_tpms.inputs.extra_values = ['CSF', 'GM', 'WM']
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_tpms
+    dds.inputs.extra_values = ['CSF', 'GM', 'WM']
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -789,8 +794,8 @@ def ds_t1_mni_warp(s, suffix_fmt, template, output_dir):
 
     dds = DerivativesDataSink(base_directory=output_dir, suffix=suffix_fmt(template, 'warp'))
 
-    dds.inputs.source_file = s[1][0].t1_2_mni_forward_transform
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_2_mni_forward_transform
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -800,8 +805,8 @@ def ds_t1_mni_inv_warp(s, suffix_fmt, template, output_dir):
     dds = DerivativesDataSink(base_directory=output_dir,
             suffix=suffix_fmt(template, 'T1w', 'warp'))
 
-    dds.inputs.source_file = s[1][0].t1_2_mni_reverse_transform
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_2_mni_reverse_transform
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -811,8 +816,8 @@ def ds_t1_mni(s, suffix_fmt, template, output_dir):
     dds = DerivativesDataSink(base_directory=output_dir,
         suffix=suffix_fmt(template, 'preproc'))
 
-    dds.inputs.source_file = s[1][0].t1_2_mni
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].t1_2_mni
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -822,8 +827,8 @@ def ds_mni_mask(s, suffix_fmt, template, output_dir):
     dds = DerivativesDataSink(base_directory=output_dir,
             suffix=suffix_fmt(template, 'brainmask'))
 
-    dds.inputs.source_file = s[1][0].mni_mask
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].mni_mask
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -833,8 +838,8 @@ def ds_mni_seg(s, suffix_fmt, template, output_dir):
     dds = DerivativesDataSink(base_directory=output_dir,
             suffix=suffix_fmt(template, 'dtissue'))
 
-    dds.inputs.source_file = s[1][0].mni_seg
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].mni_seg
 
     dds._run_interface(get_runtime(output_dir))
 
@@ -844,8 +849,8 @@ def ds_mni_tpms(s, suffix_fmt, template, output_dir):
     dds = DerivativesDataSink(base_directory=output_dir,
             suffix=suffix_fmt(template, 'class-{extra_value}_probtissue'))
 
-    dds.inputs.source_file = s[1][0].mni_tpms
-    dds.inputs.in_file = s[1][1].out
+    dds.inputs.source_file = s[1][1].out
+    dds.inputs.in_file = s[1][0].mni_tpms
     dds.inputs.extra_values = ['CSF', 'GM', 'WM']
 
     dds._run_interface(get_runtime(output_dir))
@@ -861,15 +866,18 @@ def ds_summary_report(s, reportlets_dir):
 
     dds._run_interface(get_runtime(reportlets_dir))
 
-def ds_about_report(s, version, command, reportlets_dir):
+def ds_about_report(s, version, cmd, reportlets_dir):
     print("executing ds_about_report")
 
     about = AboutSummary(version=version,
-            command=' '.join(command))
+            command=' '.join(cmd))
 
     about._run_interface(get_runtime(reportlets_dir))
 
     out = about._list_outputs()
+
+    dds = DerivativesDataSink(base_directory=reportlets_dir,
+                        suffix='about')
 
     dds.inputs.source_file = fix_multi_T1w_source_name(s[1].t1w)
     dds.inputs.in_file = out['out_report']
@@ -973,14 +981,14 @@ def init_anat_reports(sc, rdd, reportlets_dir, output_spaces, template, freesurf
         if 'template' in output_spaces:
             ds_t1_2_mni_report_data = ds_t1_2_mni_report(el, reportlets_dir)
 
-def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer):
+def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer, work_dir):
   
     t1_name_rdd = rdd.map(lambda x: t1_name(x, work_dir)).cache()
 
     # for the nodes with "run without submitting"
     inputs = rdd.join(t1_name_rdd).collect()
 
-    tt_inputs = rdd.flatMap(lambda x: [(a,b) for a,b in zip([x[0]]*len(x[1].source_files), 
+    tt_inputs = rdd.flatMap(lambda x: [(a,(b,c)) for a,b,c in zip([x[0]]*len(x[1].source_files), 
                                       x[1].source_files, x[1].t1_template_transforms )]) \
                                               .collect()
 
@@ -1046,8 +1054,9 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
     
     seg2msks_rdd = t1_seg_rdd.map(lambda x: seg2msks(x, work_dir))
 
-    seg_rpt_rdd = seg2msks_rdd.join(skull_strip_ants_rdd) \
-                              .map(lambda x: seg_rpt(x, work_dir))
+    seg_rpt_rdd = anat_template_rdd.join(seg2msks_rdd) \
+                                   .join(skull_strip_ants_rdd) \
+                                   .map(lambda x: seg_rpt(x, work_dir))
 
     if 'template' in output_spaces:
         anat_reports_rdd = init_rdd.join(anat_template_rdd) \
@@ -1064,9 +1073,9 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
                                                 .join(mni_mask_rdd) \
                                                 .join(mni_seg_rdd) \
                                                 .join(mni_tpms_rdd) \
-                                                .map(lambda x: format_anat_derivatives_rdd).cache()
+                                                .map(lambda x: format_anat_derivatives_rdd(x)).cache()
 
-        init_anat_derivatives(sc, anat_derivatives_rdd, output_dir, output_spaces, template, freesurfer)
+        init_anat_derivatives(sc, anat_derivatives_rdd, output_dir, output_spaces, template, freesurfer, work_dir)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
@@ -1111,7 +1120,7 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                             omp_nthreads=omp_nthreads
                             )
 
-    summary_report_data = bidssrc_rdd.join(summary) \
+    summary_report_data = bidssrc_rdd.join(summary_rdd) \
                                      .collect()
     [ds_summary_report(x, reportlets_dir) for x in summary_report_data]
     [ds_about_report(x, __version__, sys.argv, reportlets_dir) for x in bidsinfo_data]     
