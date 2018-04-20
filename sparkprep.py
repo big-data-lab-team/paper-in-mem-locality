@@ -23,11 +23,31 @@ from fmriprep.workflows.anatomical import _seg2msks
 from pkg_resources import resource_filename as pkgr
 from collections import namedtuple
 from multiprocessing import cpu_count
+from time import time
 import os, bunch, socket, argparse
 from fmriprep.info import __version__
-import sys
+import sys, json
 
 # helper functions
+
+def initialize_json(work_dir):
+    benchmark_file = os.path.join(work_dir, 'benchmarks.json')
+    tasks = {}
+    tasks['task'] = []
+
+    with open(benchmark_file, 'w') as f:
+        json.dump(tasks, f)
+
+def write_bench(name, start_time, end_time, node, work_dir, subject='all', run=''):
+    
+    benchmark_dir = os.path.join(work_dir, 'benchmarks')
+    os.makedirs(benchmark_dir, exist_ok=True)
+
+    benchmark_file = os.path.join(benchmark_dir, "bench-{}.txt".format(node))
+    
+    with open(benchmark_file, 'a+') as f:
+        f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time, end_time, node, subject, run))
+
 
 def get_runtime(interface_dir):
 
@@ -72,9 +92,10 @@ def get_subject_data(subject_id, task_id, bids_dir):
 
     return (subject_id, subject_data)
 
-def bidssrc(s, anat_only, work_dir):
+def bidssrc(s, anat_only, work_dir, benchmark, start):
     print('Executing BIDSDataGrabber interface')
 
+    start_time = time() - start
     bsrc = BIDSDataGrabber(subject_id=s[0], subject_data=s[1], anat_only=anat_only)
 
     bsrc._run_interface(get_runtime(work_dir))
@@ -82,6 +103,12 @@ def bidssrc(s, anat_only, work_dir):
 
     BSRC = namedtuple('BSRC', ['t1w', 't2w', 'bold'])
     b = BSRC(t1w=out['t1w'], t2w=out['t2w'], bold=out['bold'])
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='bidssrc', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir)
 
     return (s[0], b)
 
@@ -165,13 +192,15 @@ def format_anat_derivatives_rdd(s):
 
     return (s[0], a)
 
-def t1_template_dimensions(s, work_dir):
+def t1_template_dimensions(s, work_dir, benchmark, start):
     print('executing template dimensions')
 
+    start_time = time() - start
     td = TemplateDimensions()
     td.inputs.t1w_list = s[1].t1w
 
-    interface_dir = os.path.join(work_dir, s[0], 't1_template_dimensions')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_template_dimensions')
     os.makedirs(interface_dir, exist_ok=True)
 
     td._run_interface(get_runtime(interface_dir))
@@ -185,23 +214,37 @@ def t1_template_dimensions(s, work_dir):
                           out_report=td._results['out_report']
                           )
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_template_dimensions', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], tempDim)
 
-def t1_conform(s, work_dir):
+def t1_conform(s, work_dir, benchmark, start):
     print('executing t1 conform')
+    start_time = time() - start
     c = Conform()
 
     c.inputs.in_file = s[1][0]
     c.inputs.target_zooms = s[1][1][0]
     c.inputs.target_shape = s[1][1][1]
    
-    interface_dir = os.path.join(work_dir, s[0], 't1_conform')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_conform')
     os.makedirs(interface_dir, exist_ok=True)
 
     c._run_interface(get_runtime(interface_dir))
 
     T1Conform = namedtuple('T1Conform', ['out_file', 'transform'])
     tconf = T1Conform(out_file=c._results['out_file'], transform=c._results['transform'])
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_conform', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
 
     return (s[0], tconf)
 
@@ -272,11 +315,16 @@ def t1_skull_strip_output(s):
     return (s[0], os)
 
 
-def n4_correct(s, work_dir):
+def n4_correct(s, work_dir, benchmark, start):
     print('exectuing n4 bias field correction')
-    n4 = N4BiasFieldCorrection(dimension=3, copy_header=False)
 
-    interface_dir = os.path.join(work_dir, s[0], 'n4_correct')
+    start_time = time() - start
+
+    n4 = N4BiasFieldCorrection(dimension=3, copy_header=True)
+
+    subject = 'sub-{}'.format(s[0])
+    sub_dir_name = "_".join(os.path.basename(s[1].out_file).split('.')[0].split('_')[:2])
+    interface_dir = os.path.join(work_dir, subject, 'n4_correct', sub_dir_name)
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -284,20 +332,28 @@ def n4_correct(s, work_dir):
 
     os.chdir(interface_dir)
 
-    output_image = []
+    #output_image = []
 
-    for t1_conform in s[1]:
-        n4.inputs.input_image = t1_conform.out_file
-        n4._run_interface(get_runtime(interface_dir))
-        out = n4._list_outputs()
-        output_image.append(out['output_image'])
+    #for t1_conform in s[1]:
+    n4.inputs.input_image = s[1].out_file#t1_conform.out_file
+    n4._run_interface(get_runtime(interface_dir))
+    out = n4._list_outputs()
+    #output_image.append(out['output_image'])
     
     os.chdir(curr_dir)
 
-    # returning input image so it can be joined to other RDDs later on 
-    return (s[0], output_image)
+    end_time = time() - start
 
-def t1_merge(s, longitudinal, omp_nthreads, work_dir):
+    if benchmark:
+        write_bench(name='n4_correct', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=sub_dir_name)
+
+    # returning input image so it can be joined to other RDDs later on 
+    return (s[0], out['output_image'])
+
+def t1_merge(s, longitudinal, omp_nthreads, work_dir, benchmark, start):
+    
+    start_time = time() - start
     out_file = [t1conf.out_file for t1conf in s[1][0]]
     print('executing robust template task')
     t1m = fs.RobustTemplate(auto_detect_sensitivity=True,
@@ -319,7 +375,8 @@ def t1_merge(s, longitudinal, omp_nthreads, work_dir):
     t1m.inputs.out_file = add_suffix(out_file, '_template')
     t1m.inputs.in_files = s[1][1]
 
-    interface_dir = os.path.join(work_dir, s[0], 't1_merge')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_merge')
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -335,13 +392,23 @@ def t1_merge(s, longitudinal, omp_nthreads, work_dir):
     T1Merge = namedtuple('T1Merge', ['out_file', 'transform_outputs', 'in_files'])
     m_out = T1Merge(out['out_file'], out['transform_outputs'], s[1][1])
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_merge', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], m_out) 
 
-def t1_reorient(s, work_dir):
+def t1_reorient(s, work_dir, benchmark, start):
     print('executing reorient')
+
+    start_time = time() - start
+
     r = Reorient()
 
-    interface_dir = os.path.join(work_dir, s[0], 't1_reorient')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_reorient')
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
     # for the output dir in the correct directory
@@ -357,17 +424,27 @@ def t1_reorient(s, work_dir):
     ro = T1Reorient(out_file=out['out_file'], transform=out['transform'])
     os.chdir(curr_dir)
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_reorient', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     # returning input image so it can be joined to other RDDs later on 
     return (s[0], ro)
 
-def lta_to_fsl(s, work_dir):
+def lta_to_fsl(s, work_dir, benchmark, start):
     print('executing LTA Convert')
+
+    start_time = time() - start
     lta = fs.utils.LTAConvert(out_fsl=True)
+
+    subject = 'sub-{}'.format(s[0])
     sub_dir_name = "_".join(os.path.basename(s[2]).split('.')[0].split('_')[:2])
     
     interface_dir = os.path.join(
-                            work_dir, 
-                            s[0],
+                            work_dir,
+                            subject,
                             'lta_to_fsl',
                             sub_dir_name
                             )
@@ -387,14 +464,23 @@ def lta_to_fsl(s, work_dir):
     l = LTAConvert(out_fsl=out['out_fsl'], run=sub_dir_name)
     os.chdir(curr_dir)
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='lta_to_fsl', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=sub_dir_name)
+
     # returning input image so it can be joined to other RDDs later on 
     return (s[0], l)
 
-def concat_affines(s, work_dir):
+def concat_affines(s, work_dir, benchmark, start):
     print('executing Concat Affines')
 
+    start_time = time() - start
     ca = ConcatAffines(3, invert=True)
-    interface_dir = os.path.join(work_dir, s[0], 'concat_affines', s[1][0][1].run)
+
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'concat_affines', s[1][0][1].run)
 
     os.makedirs(interface_dir, exist_ok=True)
     # a terrible workaround to ensure that nipype looks 
@@ -414,13 +500,23 @@ def concat_affines(s, work_dir):
     c = ConcatAff(out_mat=out['out_mat'], run=s[1][0][1].run)
     os.chdir(curr_dir)
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='concat_affines', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=s[1][0][1].run)
+
     return (s[0], c)
 
-def fsl_to_itk(s,work_dir):
+def fsl_to_itk(s,work_dir, benchmark, start):
     print('executing C3d Affine Tool')
 
+    start_time = time() - start
+
     fi = c3.C3dAffineTool(fsl2ras=True, itk_transform=True)
-    interface_dir = os.path.join(work_dir, s[0], 'fsl_to_itk', s[1][0][1].run)
+
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'fsl_to_itk', s[1][0][1].run)
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -442,13 +538,22 @@ def fsl_to_itk(s,work_dir):
 
     os.chdir(curr_dir)
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='fsl_to_itk', start_time=start_time, end_time=end_time,
+                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=s[1][0][1].run)
+
     return (s[0], f)
 
-def t1_skull_strip(s, brain_template, brain_probability_mask, extraction_registration_mask, work_dir):
+def t1_skull_strip(s, brain_template, brain_probability_mask, extraction_registration_mask, work_dir, benchmark, start):
     print("executing Brain Extraction")
 
+    start_time = time() - start
     ss = BrainExtraction(dimension=3, use_floatingpoint_precision=1, debug=False, keep_temporary_files=1)
-    interface_dir = os.path.join(work_dir, s[0], 't1_skull_strip')
+
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_skull_strip')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -473,13 +578,22 @@ def t1_skull_strip(s, brain_template, brain_probability_mask, extraction_registr
 
     os.chdir(curr_dir)
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_skull_strip', start_time=start_time, end_time=end_time,
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
     return (s[0], sstrip)
 
-def t1_seg(s, work_dir):
+def t1_seg(s, work_dir, benchmark, start):
     print("executing FSL fast")
 
+    start_time = time() - start
+
     ts = fsl.FAST(segments=True, no_bias=True, probability_maps=True)
-    interface_dir = os.path.join(work_dir, s[0], 't1_seg')
+
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_seg')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -498,10 +612,18 @@ def t1_seg(s, work_dir):
 
     tseg = T1Seg(out['tissue_class_map'], out['probability_maps'])
 
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_seg', start_time=start_time, end_time=end_time,
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], tseg)
 
-def t1_2_mni(s, template_str, work_dir, debug=False):
+def t1_2_mni(s, template_str, work_dir, benchmark, start, debug=False):
     print("executing robust mni normalization RPT")
+
+    start_time = time() - start
 
     t1mni = RobustMNINormalizationRPT(
                 float=True,
@@ -509,7 +631,8 @@ def t1_2_mni(s, template_str, work_dir, debug=False):
                 flavor='testing' if debug else 'precise',
                 )
 
-    interface_dir = os.path.join(work_dir, s[0], 't1_2_mni')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_2_mni')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -530,15 +653,24 @@ def t1_2_mni(s, template_str, work_dir, debug=False):
     t = T1_MNI(out['warped_image'], out['composite_transform'], out['inverse_composite_transform'], out['out_report'])
 
     os.chdir(curr_dir)
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_2_mni', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], t)
 
-def mni_mask(s, ref_img, work_dir):
+def mni_mask(s, ref_img, work_dir, benchmark, start):
     print("executing mni mask")
+
+    start_time = time() - start
 
     mm = ApplyTransforms(dimension=3, default_value=0, float=True,
             interpolation='MultiLabel')
 
-    interface_dir = os.path.join(work_dir, s[0], 'mni_mask')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'mni_mask')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -559,15 +691,25 @@ def mni_mask(s, ref_img, work_dir):
     m = MNIMask(out['output_image'])
 
     os.chdir(curr_dir)
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='mni_mask', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], m)
 
-def mni_seg(s, ref_img, work_dir):
+def mni_seg(s, ref_img, work_dir, benchmark, start):
     print("executing mni seg")
+
+    start_time = time() - start
 
     ms = ApplyTransforms(dimension=3, default_value=0, float=True,
             interpolation='MultiLabel')
 
-    interface_dir = os.path.join(work_dir, s[0], 'mni_seg')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'mni_seg')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -588,16 +730,26 @@ def mni_seg(s, ref_img, work_dir):
     m = MNISeg(out['output_image'])
 
     os.chdir(curr_dir)
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='mni_seg', start_time=start_time, end_time=end_time,
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], m)
 
-def mni_tpms(s, ref_img, work_dir):
+def mni_tpms(s, ref_img, work_dir, benchmark, start):
     print("executing mni tpms")
+
+    start_time = time() - start
 
     mt = ApplyTransforms(dimension=3, default_value=0, float=True,
             interpolation='Linear')
 
     #sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[-1])
-    interface_dir = os.path.join(work_dir, s[0], 'mni_tpms')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'mni_tpms')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -618,14 +770,23 @@ def mni_tpms(s, ref_img, work_dir):
     m = MNITpms(out['output_image'])
 
     os.chdir(curr_dir)
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='mni_tpms', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
     return (s[0], m)
 
-def seg2msks(s, work_dir):
+def seg2msks(s, work_dir, benchmark, start):
     print("executing seg2msks")
+
+    start_time = time() - start
 
     sm = niu.Function(function=_seg2msks)
 
-    interface_dir = os.path.join(work_dir, s[0], 'seg2msks')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'seg2msks')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -644,14 +805,24 @@ def seg2msks(s, work_dir):
     m = Seg2Msks(out['out'])
 
     os.chdir(curr_dir)
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='seg2msks', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], m)
 
-def seg_rpt(s, work_dir):
+def seg_rpt(s, work_dir, benchmark, start):
     print("executing seg_rpt")
+
+    start_time = time() - start
 
     sr = ROIsPlot(colors=['r', 'magenta', 'b', 'g'])
 
-    interface_dir = os.path.join(work_dir, s[0], 'seg_rpt')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 'seg_rpt')
     os.makedirs(interface_dir, exist_ok=True)
 
     # a terrible workaround to ensure that nipype looks 
@@ -670,6 +841,11 @@ def seg_rpt(s, work_dir):
     r = SegRpt(out['out_report'])
 
     os.chdir(curr_dir)
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='seg_rpt', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
     return (s[0], r)
 
 def ds_t1_conform_report(s, reportlets_dir):
@@ -711,12 +887,15 @@ def ds_t1_2_mni_report(s, reportlets_dir):
 
     #
 
-def t1_name(s, work_dir):
+def t1_name(s, work_dir, benchmark, start):
     print("executing t1_name")
+
+    start_time = time() - start
 
     tn = niu.Function(function=fix_multi_T1w_source_name)
 
-    interface_dir = os.path.join(work_dir, s[0], 't1_name')
+    subject = 'sub-{}'.format(s[0])
+    interface_dir = os.path.join(work_dir, subject, 't1_name')
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -735,6 +914,13 @@ def t1_name(s, work_dir):
     t = T1Name(out['out'])
 
     os.chdir(curr_dir)
+
+    end_time = time() - start
+
+    if benchmark:
+        write_bench(name='t1_name', start_time=start_time, end_time=end_time, 
+                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+
     return (s[0], t)
 
 def ds_t1_template_transforms(s, suffix_fmt, output_dir):
@@ -884,9 +1070,9 @@ def ds_about_report(s, version, cmd, reportlets_dir):
 
     dds._run_interface(get_runtime(reportlets_dir))
 
-def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
+def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir, benchmark, start):
     
-    t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir)) \
+    t1_tempdim_rdd = rdd.map(lambda x: t1_template_dimensions(x, work_dir, benchmark, start)) \
                         .cache()
     
     # create an tuple for each existing t1w image in RDD
@@ -896,7 +1082,7 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     t1_targets_rdd = t1_tempdim_rdd.map(lambda x: (x[0], (x[1].target_zooms, x[1].target_shape)))
 
     t1_conform_rdd = t1w_list_rdd.join(t1_targets_rdd) \
-                                 .map(lambda x: t1_conform(x, work_dir))
+                                 .map(lambda x: t1_conform(x, work_dir, benchmark, start))
 
     multi_t1w = t1_tempdim_rdd.map(lambda x: (x[0], len(x[1].t1w_valid_list))) \
                                  .filter(lambda x: x[1] > 1) \
@@ -916,18 +1102,20 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
     t1p1_conform_grouped_rdd = t1_conform_p1_rdd.groupByKey() \
                                                 .map(lambda x: (x[0], list(x[1])))
 
-    n4_correct_rdd = t1p1_conform_grouped_rdd.map(lambda x: n4_correct(x, work_dir))
+    n4_correct_rdd = t1_conform_p1_rdd.map(lambda x: n4_correct(x, work_dir, benchmark, start)) \
+                                      .groupByKey() \
+                                      .map(lambda x: (x[0], list(x[1])))
    
     t1_merge_rdd = t1p1_conform_grouped_rdd.join(n4_correct_rdd) \
-                                           .map(lambda x: t1_merge(x, longitudinal, omp_nthreads, work_dir)) \
+                                           .map(lambda x: t1_merge(x, longitudinal, omp_nthreads, work_dir, benchmark, start)) \
                                            .cache()
 
-    t1_reorient_rdd = t1_merge_rdd.map(lambda x: t1_reorient(x, work_dir)) \
+    t1_reorient_rdd = t1_merge_rdd.map(lambda x: t1_reorient(x, work_dir, benchmark, start)) \
                                   .cache()
 
     lta_to_fsl_rdd = t1_merge_rdd.flatMap(lambda x: 
                            [(a,b,c) for a,b,c in zip([x[0]]*len(x[1].transform_outputs), x[1].transform_outputs,x[1].in_files)]) \
-                           .map(lambda x: lta_to_fsl(x, work_dir))
+                           .map(lambda x: lta_to_fsl(x, work_dir, benchmark, start))
 
     # run without submitting
     concat_affines_prep = t1_conform_p1_rdd.join(lta_to_fsl_rdd) \
@@ -935,14 +1123,14 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
                                           .filter(lambda x: x[1][0][1].run in x[1][0][0].out_file) \
                                           .collect()
 
-    concat_affines_seq = [concat_affines(el, work_dir) for el in concat_affines_prep]
+    concat_affines_seq = [concat_affines(el, work_dir, benchmark, start) for el in concat_affines_prep]
 
     concat_affines_rdd = sc.parallelize(concat_affines_seq)
 
     fsl_to_itk_rdd = t1w_list_rdd.join(concat_affines_rdd) \
                                  .join(t1_reorient_rdd) \
                                  .filter(lambda x: x[1][0][1].run in x[1][0][0]) \
-                                 .map(lambda x: fsl_to_itk(x, work_dir)) \
+                                 .map(lambda x: fsl_to_itk(x, work_dir, benchmark, start)) \
                                  .groupByKey()
 
     output_rdd = t1_tempdim_rdd.join(fsl_to_itk_rdd) \
@@ -952,7 +1140,7 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir):
 
     return output_rdd
 
-def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir):
+def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir, benchmark, start):
 
     #if skull_strip_template = OASIS. Taken directly from fmriprep
     template_dir = nid.get_ants_oasis_template_ras()
@@ -963,7 +1151,8 @@ def init_skull_strip_ants(sc, rdd, skull_strip_template, omp_nthreads, work_dir)
                                 template_dir, 'T_template0_BrainCerebellumRegistrationMask.nii.gz')
 
     t1_skull_strip_rdd = rdd.map(lambda x: t1_skull_strip(x, brain_template,
-                                            brain_probability_mask, extraction_registration_mask, work_dir))
+                                            brain_probability_mask, extraction_registration_mask, 
+                                            work_dir, benchmark, start))
 
     output_rdd = t1_skull_strip_rdd.map(t1_skull_strip_output)
     
@@ -981,9 +1170,9 @@ def init_anat_reports(sc, rdd, reportlets_dir, output_spaces, template, freesurf
         if 'template' in output_spaces:
             ds_t1_2_mni_report_data = ds_t1_2_mni_report(el, reportlets_dir)
 
-def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer, work_dir):
+def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurfer, work_dir, benchmark, start):
   
-    t1_name_rdd = rdd.map(lambda x: t1_name(x, work_dir)).cache()
+    t1_name_rdd = rdd.map(lambda x: t1_name(x, work_dir, benchmark, start)).cache()
 
     # for the nodes with "run without submitting"
     inputs = rdd.join(t1_name_rdd).collect()
@@ -1013,38 +1202,38 @@ def init_anat_derivatives(sc, rdd, output_dir, output_spaces, template, freesurf
 
 
 def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, template, omp_nthreads,
-                            longitudinal, freesurfer, reportlets_dir, output_dir, work_dir):
+                            longitudinal, freesurfer, reportlets_dir, output_dir, work_dir, benchmark, start):
 
     init_rdd = rdd.map(lambda x: format_anat_template_rdd(x))
 
-    anat_template_rdd = init_spark_anat_template(sc, init_rdd, longitudinal, omp_nthreads, work_dir) \
+    anat_template_rdd = init_spark_anat_template(sc, init_rdd, longitudinal, omp_nthreads, work_dir, benchmark, start) \
                         .cache()
 
-    skull_strip_ants_rdd = init_skull_strip_ants(sc, anat_template_rdd, skull_strip_template, omp_nthreads, work_dir) \
-                           .persist(StorageLevel.DISK_ONLY)
+    skull_strip_ants_rdd = init_skull_strip_ants(sc, anat_template_rdd, skull_strip_template, omp_nthreads, work_dir, benchmark, start) \
+                           .cache()
     
     # starts differing here from fmriprep as it assumes reconall is not performed
-    t1_seg_rdd = skull_strip_ants_rdd.map(lambda x: t1_seg(x, work_dir)).cache()
+    t1_seg_rdd = skull_strip_ants_rdd.map(lambda x: t1_seg(x, work_dir, benchmark, start)).cache()
 
 
     if 'template' in output_spaces:
         template_str = nid.TEMPLATE_MAP[template]
         ref_img = os.path.join(nid.get_dataset(template_str), '1mm_T1.nii.gz')
 
-        t1_2_mni_rdd = skull_strip_ants_rdd.map(lambda x: t1_2_mni(x, template_str, work_dir)) \
+        t1_2_mni_rdd = skull_strip_ants_rdd.map(lambda x: t1_2_mni(x, template_str, work_dir, benchmark, start)) \
                                            .cache()
 
         mni_mask_rdd = skull_strip_ants_rdd \
                             .join(t1_2_mni_rdd) \
-                            .map(lambda x: mni_mask(x, ref_img, work_dir))
+                            .map(lambda x: mni_mask(x, ref_img, work_dir, benchmark, start))
 
         mni_seg_rdd = t1_seg_rdd \
                             .join(t1_2_mni_rdd) \
-                            .map(lambda x: mni_seg(x, ref_img, work_dir))
+                            .map(lambda x: mni_seg(x, ref_img, work_dir, benchmark, start))
 
         mni_tpms_rdd = t1_seg_rdd.flatMap(lambda x: [(a,b) for a,b in zip([x[0]]*len(x[1].probability_maps), x[1].probability_maps)]) \
                                  .join(t1_2_mni_rdd) \
-                                 .map(lambda x: mni_tpms(x, ref_img, work_dir)) \
+                                 .map(lambda x: mni_tpms(x, ref_img, work_dir, benchmark, start)) \
                                  .groupByKey() \
                                  .map(lambda x: (x[0], list(x[1])))
 
@@ -1052,11 +1241,11 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
 
         #print(mni_tpms_rdd.collect())
     
-    seg2msks_rdd = t1_seg_rdd.map(lambda x: seg2msks(x, work_dir))
+    seg2msks_rdd = t1_seg_rdd.map(lambda x: seg2msks(x, work_dir, benchmark, start))
 
     seg_rpt_rdd = anat_template_rdd.join(seg2msks_rdd) \
                                    .join(skull_strip_ants_rdd) \
-                                   .map(lambda x: seg_rpt(x, work_dir))
+                                   .map(lambda x: seg_rpt(x, work_dir, benchmark, start))
 
     if 'template' in output_spaces:
         anat_reports_rdd = init_rdd.join(anat_template_rdd) \
@@ -1075,13 +1264,14 @@ def init_spark_anat_preproc(sc, rdd, skull_strip_template, output_spaces, templa
                                                 .join(mni_tpms_rdd) \
                                                 .map(lambda x: format_anat_derivatives_rdd(x)).cache()
 
-        init_anat_derivatives(sc, anat_derivatives_rdd, output_dir, output_spaces, template, freesurfer, work_dir)
+        init_anat_derivatives(sc, anat_derivatives_rdd, output_dir, output_spaces, template, freesurfer, work_dir, benchmark, start)
 
 def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal, 
                  t2s_coreg, skull_strip_template, work_dir, output_dir, bids_dir,
                  freesurfer, output_spaces, template, medial_surface_nan,
                  hires, use_bbr, bold2t1w_dof, fmap_bspline, fmap_demean,
-                 use_syn, force_syn, use_aroma, output_grid_ref, omp_nthreads, wf_name='sprep_wf'):
+                 use_syn, force_syn, use_aroma, output_grid_ref, omp_nthreads, 
+                 benchmark, start, wf_name='sprep_wf'):
     
     sc = create_spark_context(wf_name)
 
@@ -1091,7 +1281,7 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
     subject_rdd = sc.parallelize(subject_list) \
             .map(lambda x: get_subject_data(x, task_id, bids_dir))
 
-    bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir)) \
+    bidssrc_rdd = subject_rdd.map(lambda x: bidssrc(x, anat_only, work_dir, benchmark, start)) \
                              .cache()
 
     bidsinfo_data = bidssrc_rdd.collect()
@@ -1117,7 +1307,9 @@ def init_main_wf(subject_list, task_id, ignore, anat_only, longitudinal,
                             reportlets_dir=reportlets_dir,
                             output_dir=output_dir,
                             work_dir=work_dir,
-                            omp_nthreads=omp_nthreads
+                            omp_nthreads=omp_nthreads,
+                            benchmark=benchmark,
+                            start=start
                             )
 
     summary_report_data = bidssrc_rdd.join(summary_rdd) \
@@ -1131,10 +1323,10 @@ def main():
     parser = argparse.ArgumentParser(description="Spark partial implementation of fMRIprep")
     parser.add_argument('bids_dir', action='store', help='root BIDS directory')
     parser.add_argument('output_dir', action='store', help='output directory')
-    parser.add_argument('analysis_level', choices=['participant'],help='BIDS analysis level (participant only)')
+    parser.add_argument('analysis_level', choices=['participant'], help='BIDS analysis level (participant only)')
     parser.add_argument('--anat-only', action='store_true', help='run anatomical workflow only')
     parser.add_argument('-w', '--work-dir', action='store', help='working directory')
-
+    parser.add_argument('-b','--benchmark', action='store_true', help='benchmark results')
     args = parser.parse_args()
 
     # currently forced parameters (some of which are only pertinent to fmriprep and will be removed)
@@ -1176,6 +1368,7 @@ def main():
     if omp_nthreads == 0:
         omp_nthreads = min(nthreads - 1 if nthreads > 1 else cpu_count(), 8)
 
+    a_start = time()
     init_main_wf(
             subject_list=subject_list,
             task_id=None,
@@ -1200,7 +1393,9 @@ def main():
             use_syn=use_syn_sdc,
             force_syn=force_syn,
             use_aroma=use_aroma,
-            omp_nthreads=omp_nthreads
+            omp_nthreads=omp_nthreads,
+            benchmark = args.benchmark,
+            start = a_start
      )        
 
 
