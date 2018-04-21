@@ -232,7 +232,8 @@ def t1_conform(s, work_dir, benchmark, start):
     c.inputs.target_shape = s[1][1][1]
    
     subject = 'sub-{}'.format(s[0])
-    interface_dir = os.path.join(work_dir, subject, 't1_conform')
+    sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[:2])
+    interface_dir = os.path.join(work_dir, subject, 't1_conform', sub_dir_name)
     os.makedirs(interface_dir, exist_ok=True)
 
     c._run_interface(get_runtime(interface_dir))
@@ -244,7 +245,7 @@ def t1_conform(s, work_dir, benchmark, start):
 
     if benchmark:
         write_bench(name='t1_conform', start_time=start_time, end_time=end_time, 
-                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=sub_dir_name)
 
     return (s[0], tconf)
 
@@ -473,10 +474,9 @@ def lta_to_fsl(s, work_dir, benchmark, start):
     # returning input image so it can be joined to other RDDs later on 
     return (s[0], l)
 
-def concat_affines(s, work_dir, benchmark, start):
+def concat_affines(s, work_dir):
     print('executing Concat Affines')
 
-    start_time = time() - start
     ca = ConcatAffines(3, invert=True)
 
     subject = 'sub-{}'.format(s[0])
@@ -499,12 +499,6 @@ def concat_affines(s, work_dir, benchmark, start):
     ConcatAff = namedtuple('ConcatAff', ['out_mat','run'])
     c = ConcatAff(out_mat=out['out_mat'], run=s[1][0][1].run)
     os.chdir(curr_dir)
-
-    end_time = time() - start
-
-    if benchmark:
-        write_bench(name='concat_affines', start_time=start_time, end_time=end_time, 
-                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=s[1][0][1].run)
 
     return (s[0], c)
 
@@ -747,9 +741,9 @@ def mni_tpms(s, ref_img, work_dir, benchmark, start):
     mt = ApplyTransforms(dimension=3, default_value=0, float=True,
             interpolation='Linear')
 
-    #sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[-1])
+    sub_dir_name = "_".join(os.path.basename(s[1][0]).split('.')[0].split('_')[-1])
     subject = 'sub-{}'.format(s[0])
-    interface_dir = os.path.join(work_dir, subject, 'mni_tpms')
+    interface_dir = os.path.join(work_dir, subject, 'mni_tpms', sub_dir_name)
 
     os.makedirs(interface_dir, exist_ok=True)
 
@@ -775,7 +769,7 @@ def mni_tpms(s, ref_img, work_dir, benchmark, start):
 
     if benchmark:
         write_bench(name='mni_tpms', start_time=start_time, end_time=end_time, 
-                node=socket.gethostname(), work_dir=work_dir, subject=subject)
+                node=socket.gethostname(), work_dir=work_dir, subject=subject, run=sub_dir_name)
     return (s[0], m)
 
 def seg2msks(s, work_dir, benchmark, start):
@@ -1077,7 +1071,7 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir, benc
     
     # create an tuple for each existing t1w image in RDD
     t1w_list_rdd = t1_tempdim_rdd.flatMap(lambda x: 
-                        [(a,b) for a,b in zip([x[0]]*len(x[1].t1w_valid_list), x[1].t1w_valid_list)])
+                        [(a,b) for a,b in zip([x[0]]*len(x[1].t1w_valid_list), x[1].t1w_valid_list)]) \
 
     t1_targets_rdd = t1_tempdim_rdd.map(lambda x: (x[0], (x[1].target_zooms, x[1].target_shape)))
 
@@ -1123,7 +1117,7 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir, benc
                                           .filter(lambda x: x[1][0][1].run in x[1][0][0].out_file) \
                                           .collect()
 
-    concat_affines_seq = [concat_affines(el, work_dir, benchmark, start) for el in concat_affines_prep]
+    concat_affines_seq = [concat_affines(el, work_dir) for el in concat_affines_prep]
 
     concat_affines_rdd = sc.parallelize(concat_affines_seq)
 
