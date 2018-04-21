@@ -1077,6 +1077,7 @@ def init_spark_anat_template(sc, rdd, longitudinal, omp_nthreads, work_dir, benc
 
     t1_conform_rdd = t1w_list_rdd.join(t1_targets_rdd) \
                                  .map(lambda x: t1_conform(x, work_dir, benchmark, start))
+                                 .cache()
 
     multi_t1w = t1_tempdim_rdd.map(lambda x: (x[0], len(x[1].t1w_valid_list))) \
                                  .filter(lambda x: x[1] > 1) \
