@@ -7,6 +7,8 @@
 - The fMRIPrep workflow selected is anatomical preprocessing without reconall (command-line call to be added here)
 - Spark implementation can be found under `sparkprep.py`
 
+Project report: https://docs.google.com/document/d/1gVQ5X9mEMPXmoTBowtW_Bbj371v056FeQJ407lKZCOo/edit?usp=sharing
+
 
 ### References:
 [1]https://fmriprep.readthedocs.io/en/latest/index.html
