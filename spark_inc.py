@@ -63,13 +63,14 @@ def increment_data(filename, data, metadata, delay,
     return (filename, data, metadata)
 
 
-def save_incremented(filename, data, metadata, benchmark, start, output_dir):
+def save_incremented(filename, data, metadata, benchmark, start,
+                     output_dir, iterations):
 
     start_time = time() - start
 
     bn = os.path.basename(filename)
     im = nib.Nifti1Image(data, metadata[0], header=metadata[1])
-    out_fn = os.path.join(output_dir, 'inc-' + bn)
+    out_fn = os.path.join(output_dir, 'inc{0}-{1}'.format(iterations, bn))
     nib.save(im, out_fn)
 
     end_time = time() - start
@@ -118,8 +119,8 @@ def main():
                                                    args.output_dir))
 
     imRDD.map(lambda x: save_incremented(x[0], x[1], x[2],
-                                        args.benchmark, start,
-                                        args.output_dir)) \
+                                         args.benchmark, start,
+                                         args.output_dir, args.iterations)) \
          .collect()
 
     end = time() - start
