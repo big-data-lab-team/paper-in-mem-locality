@@ -92,10 +92,10 @@ def main():
     parser = argparse.ArgumentParser(description="BigBrain binarization")
     parser.add_argument('bb_dir', type=str,
                         help=('The folder containing BigBrain NIfTI images'
-                        '(local fs only)'))
+                              '(local fs only)'))
     parser.add_argument('output_dir', type=str,
                         help=('the folder to save binarized images to '
-                        '(local fs only)'))
+                              '(local fs only)'))
     parser.add_argument('threshold', type=int, help='binarization threshold')
     parser.add_argument('iterations', type=int, help='number of iterations')
     parser.add_argument('--benchmark', action='store_true',
