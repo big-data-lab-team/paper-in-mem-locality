@@ -1,6 +1,6 @@
 from pyspark import SparkContext, SparkConf
 from io import BytesIO
-from time import time
+from time import sleep, time
 import os
 import socket
 import uuid
@@ -51,7 +51,7 @@ def increment_data(filename, data, metadata, delay,
     start_time = time() - start
 
     data += 1
-    time.sleep(delay)
+    sleep(delay)
 
     end_time = time() - start
 
@@ -117,14 +117,14 @@ def main():
                                                    args.benchmark, start,
                                                    args.output_dir))
 
-    imRDD.map(lambda x: save_incremeted(x[0], x[1], x[2],
+    imRDD.map(lambda x: save_incremented(x[0], x[1], x[2],
                                         args.benchmark, start,
                                         args.output_dir)) \
          .collect()
 
     end = time() - start
 
-    if benchmark:
+    if args.benchmark:
         write_bench('driver program', start, end, socket.gethostname(),
                     args.output_dir, 'allfiles')
 
