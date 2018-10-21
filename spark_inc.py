@@ -4,27 +4,32 @@ from time import sleep, time
 import os
 import socket
 import uuid
+import shutil
 import numpy as np
 import nibabel as nib
 import argparse
 
 
-def write_bench(name, start_time, end_time, node, output_dir, filename):
+def write_bench(name, start_time, end_time, node, output_dir,
+                filename, benchmark_dir=None, benchmark_file=None):
 
-    benchmark_dir = os.path.join(output_dir, 'benchmarks')
-    os.makedirs(benchmark_dir, exist_ok=True)
-
-    benchmark_file = os.path.join(
-            benchmark_dir,
-            "bench-{}.txt".format(str(uuid.uuid1()))
-            )
+    if not benchmark_file:
+        try:
+            os.makedirs(benchmark_dir, exist_ok=True)
+            benchmark_file = os.path.join(
+                    benchmark_dir,
+                    "bench-{}.txt".format(str(uuid.uuid1()))
+                    )
+        except:
+            print('ERROR: benchmark_dir parameter has not been defined.')
 
     with open(benchmark_file, 'a+') as f:
         f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
                                                node, filename))
 
+    return benchmark_file
 
-def read_img(filename, data, benchmark, start, output_dir):
+def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 
     start_time = time() - start
 
@@ -38,15 +43,17 @@ def read_img(filename, data, benchmark, start, output_dir):
 
     bn = os.path.basename(filename)
 
+    bench_file = None
     if benchmark:
-        write_bench('read_img', start_time, end_time,
-                    socket.gethostname(), output_dir, bn)
+        bench_file = write_bench('read_img', start_time, end_time,
+                                 socket.gethostname(), output_dir, bn,
+                                 benchmark_dir=bench_dir)
 
-    return (filename, data, (im.affine, im.header))
+    return (filename, data, (im.affine, im.header), bench_file)
 
 
 def increment_data(filename, data, metadata, delay,
-                   benchmark, start, output_dir):
+                   benchmark, start, output_dir, bench_file=None):
 
     start_time = time() - start
 
@@ -58,13 +65,14 @@ def increment_data(filename, data, metadata, delay,
     if benchmark:
         bn = os.path.basename(filename)
         write_bench('increment_data', start_time, end_time,
-                    socket.gethostname(), output_dir, tn)
+                    socket.gethostname(), output_dir, bn,
+                    benchmark_file=bench_file)
 
-    return (filename, data, metadata)
+    return (filename, data, metadata, bench_file)
 
 
 def save_incremented(filename, data, metadata, benchmark, start,
-                     output_dir, iterations):
+                     output_dir, iterations, bench_file=None):
 
     start_time = time() - start
 
@@ -77,7 +85,8 @@ def save_incremented(filename, data, metadata, benchmark, start,
 
     if benchmark:
         write_bench('save_incremented', start_time, end_time,
-                    socket.gethostname(), output_dir, bn)
+                    socket.gethostname(), output_dir, bn,
+                    benchmark_file=bench_file)
 
     return (out_fn, 'SUCCESS')
 
@@ -106,28 +115,43 @@ def main():
 
     delay = args.delay
     os.makedirs(args.output_dir, exist_ok=True)
+    app_uuid = str(uuid.uuid1())
+    benchmark_dir = os.path.join(args.output_dir, 
+                                 'benchmarks-{}'.format(app_uuid))
 
     # read binary data stored in folder and create an RDD from it
     imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir)) \
               .map(lambda x: read_img(x[0], x[1],
                                       args.benchmark,
-                                      start, args.output_dir))
+                                      start, args.output_dir,
+                                      bench_dir=benchmark_dir))
 
     for i in range(args.iterations):
         imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], x[2], delay,
                                                    args.benchmark, start,
-                                                   args.output_dir))
+                                                   args.output_dir, x[3]))
 
     imRDD.map(lambda x: save_incremented(x[0], x[1], x[2],
                                          args.benchmark, start,
-                                         args.output_dir, args.iterations)) \
+                                         args.output_dir,
+                                         args.iterations, x[3])) \
          .collect()
 
     end = time() - start
 
     if args.benchmark:
+        fname = 'benchmark-{}.txt'.format(app_uuid)
+        benchmark_file = os.path.join(args.output_dir, fname)
         write_bench('driver program', start, end, socket.gethostname(),
-                    args.output_dir, 'allfiles')
+                    args.output_dir, 'allfiles', benchmark_file=benchmark_file)
+
+        with open(benchmark_file, 'a+') as bench:
+            for b in os.listdir(benchmark_dir):
+                with open(os.path.join(benchmark_dir, b), 'r') as f:
+                    bench.write(f.read())
+
+        shutil.rmtree(benchmark_dir)
+
 
 
 if __name__ == '__main__':
