@@ -14,20 +14,20 @@ def write_bench(name, start_time, end_time, node, output_dir,
                 filename, benchmark_dir=None, benchmark_file=None):
 
     if not benchmark_file:
-        try:
-            os.makedirs(benchmark_dir, exist_ok=True)
-            benchmark_file = os.path.join(
-                    benchmark_dir,
-                    "bench-{}.txt".format(str(uuid.uuid1()))
-                    )
-        except:
-            print('ERROR: benchmark_dir parameter has not been defined.')
+        assert benchmark_dir, 'benchmark_dir parameter has not been defined.'
+
+        os.makedirs(benchmark_dir, exist_ok=True)
+        benchmark_file = os.path.join(
+                benchmark_dir,
+                "bench-{}.txt".format(str(uuid.uuid1()))
+                )
 
     with open(benchmark_file, 'a+') as f:
         f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
                                                node, filename))
 
     return benchmark_file
+
 
 def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 
@@ -116,7 +116,8 @@ def main():
     delay = args.delay
     os.makedirs(args.output_dir, exist_ok=True)
     app_uuid = str(uuid.uuid1())
-    benchmark_dir = os.path.join(args.output_dir, 
+    print('Application id: ', app_uuid)
+    benchmark_dir = os.path.join(args.output_dir,
                                  'benchmarks-{}'.format(app_uuid))
 
     # read binary data stored in folder and create an RDD from it
@@ -151,7 +152,6 @@ def main():
                     bench.write(f.read())
 
         shutil.rmtree(benchmark_dir)
-
 
 
 if __name__ == '__main__':

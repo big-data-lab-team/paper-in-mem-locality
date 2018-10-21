@@ -1,6 +1,7 @@
 import pytest
 import subprocess
 import hashlib
+from os import path as op
 
 
 def test_increment():
@@ -28,3 +29,14 @@ def test_increment():
                       .hexdigest()
 
     assert h_prog_10 == h_exp_10
+
+
+def test_benchmark():
+
+    p = subprocess.Popen(['python', 'spark_inc.py', 'sample_data', 'inc_out',
+                          '1', '--benchmark'], stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    app_uuid = str(out).split()[-1][:-3]
+    assert op.isfile('inc_out/benchmark-{}.txt'.format(app_uuid))
