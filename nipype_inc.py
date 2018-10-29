@@ -9,7 +9,7 @@ import socket
 
 
 def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
-                    benchmark_dir=None, final=True):
+                    benchmark_dir=None, final=True, it=0):
     import nibabel as nib
     import numpy as np
     import os
@@ -35,13 +35,11 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
 
     inc_im = nib.Nifti1Image(data, im.affine)
 
-    inc_file = None
+    inc_file = os.path.basename(chunk)
 
     if final:
         print("Saving final results to output folder")
-        inc_file = os.path.join(output_dir, os.path.basename(chunk))
-    else:
-        inc_file = os.path.basename(chunk)
+        inc_file = os.path.join(output_dir, 'inc{}-{}'.format(it, inc_file))
 
     nib.save(inc_im, inc_file)
     inc_file = os.path.abspath(inc_file)
@@ -95,7 +93,7 @@ def main():
     inc_1 = MapNode(Function(input_names=['chunk', 'delay',
                                           'benchmark', 'start',
                                           'output_dir', 'benchmark_dir',
-                                          'final'],
+                                          'final', 'it'],
                              output_names=['inc_chunk'],
                              function=increment_chunk),
                     iterfield=['chunk'],
@@ -107,7 +105,13 @@ def main():
     inc_1.inputs.benchmark_dir = benchmark_dir
     inc_1.inputs.benchmark = args.benchmark
     inc_1.inputs.start = start
-    inc_1.inputs.final = False
+
+    if args.iterations == 1:
+        inc_1.inputs.final = True
+    else:
+        inc_1.inputs.final = False
+
+    inc_1.inputs.it = 1
     wf.add_nodes([inc_1])
 
     for i in range(0, args.iterations - 1):
@@ -115,7 +119,7 @@ def main():
         inc_2 = MapNode(Function(input_names=['chunk', 'delay',
                                               'benchmark', 'start',
                                               'output_dir', 'benchmark_dir',
-                                              'final'],
+                                              'final', 'it'],
                                  output_names=['inc_chunk'],
                                  function=increment_chunk),
                         iterfield=['chunk'],
@@ -126,6 +130,7 @@ def main():
         inc_2.inputs.benchmark_dir = benchmark_dir
         inc_2.inputs.benchmark = args.benchmark
         inc_2.inputs.start = start
+        inc_2.inputs.it = i + 2
 
         if i + 1 == args.iterations - 1:
             inc_2.inputs.final = True
