@@ -1,3 +1,5 @@
+#!usr/bin/env python3
+
 from nipype import Workflow, MapNode, Node, Function
 from time import time
 import argparse
@@ -9,12 +11,13 @@ import socket
 
 
 def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
-                    benchmark_dir=None, final=True, it=0):
+                    benchmark_dir=None, final=True, it=0, cli=False):
     import nibabel as nib
     import numpy as np
     import os
     import socket
     import uuid
+    import subprocess
     from time import time
 
     start_time = time() - start
@@ -28,21 +31,49 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
             f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
                                                    node, filename))
 
-    im = nib.load(chunk)
-    data = im.get_data()
-
-    data += 1
-
-    inc_im = nib.Nifti1Image(data, im.affine)
-
     inc_file = os.path.basename(chunk)
 
-    if final:
-        print("Saving final results to output folder")
-        inc_file = os.path.join(output_dir, 'inc{}-{}'.format(it, inc_file))
+    if not cli:
+        im = nib.load(chunk)
+        data = im.get_data()
 
-    nib.save(inc_im, inc_file)
-    inc_file = os.path.abspath(inc_file)
+        data += 1
+
+        inc_im = nib.Nifti1Image(data, im.affine)
+
+
+        if final:
+            print("Saving final results to output folder: "
+                  "{}".format(output_dir))
+            inc_file = os.path.join(output_dir, 'inc{}-{}'.format(it, inc_file))
+
+        nib.save(inc_im, inc_file)
+        inc_file = os.path.abspath(inc_file)
+
+    else:
+        program = 'increment.py'
+        if final:
+            print("Saving final results to output folder: "
+                  "{}".format(output_dir))
+            p = subprocess.Popen([program, chunk, output_dir,
+                                  '--delay', str(delay)],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            (out, err) = p.communicate()
+            inc_file = os.path.join(output_dir, 'inc-{}'.format(inc_file))
+            print(out,err) 
+        else:
+            p = subprocess.Popen([program, chunk, os.getcwd(),
+                                  '--delay', str(delay)],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            (out, err) = p.communicate()
+            if 'inc' not in inc_file:
+                inc_file = 'inc-{}'.format(inc_file)
+            inc_file = os.path.join(os.getcwd(), inc_file)
+            print(out, err)
+
+
     end_time = time() - start
 
     if benchmark:
@@ -62,6 +93,8 @@ def main():
                         help='the folder to save incremented images to '
                              '(local fs only)')
     parser.add_argument('iterations', type=int, help='number of iterations')
+    parser.add_argument('--cli', action='store_true', 
+                        help='use CLI application')
     parser.add_argument('--delay', type=int, default=0,
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
@@ -93,7 +126,7 @@ def main():
     inc_1 = MapNode(Function(input_names=['chunk', 'delay',
                                           'benchmark', 'start',
                                           'output_dir', 'benchmark_dir',
-                                          'final', 'it'],
+                                          'final', 'it', 'cli'],
                              output_names=['inc_chunk'],
                              function=increment_chunk),
                     iterfield=['chunk'],
@@ -105,6 +138,7 @@ def main():
     inc_1.inputs.benchmark_dir = benchmark_dir
     inc_1.inputs.benchmark = args.benchmark
     inc_1.inputs.start = start
+    inc_1.inputs.cli = args.cli
 
     if args.iterations == 1:
         inc_1.inputs.final = True
@@ -119,7 +153,7 @@ def main():
         inc_2 = MapNode(Function(input_names=['chunk', 'delay',
                                               'benchmark', 'start',
                                               'output_dir', 'benchmark_dir',
-                                              'final', 'it'],
+                                              'final', 'it', 'cli'],
                                  output_names=['inc_chunk'],
                                  function=increment_chunk),
                         iterfield=['chunk'],
@@ -131,6 +165,7 @@ def main():
         inc_2.inputs.benchmark = args.benchmark
         inc_2.inputs.start = start
         inc_2.inputs.it = i + 2
+        inc_2.inputs.cli = args.cli
 
         if i + 1 == args.iterations - 1:
             inc_2.inputs.final = True

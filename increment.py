@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import argparse
 import nibabel as nib
 from os import path as op
@@ -5,23 +7,27 @@ import time
 
 
 def increment(fn, outdir, delay):
+    print('Incrementing image: ', fn)
     im = nib.load(fn)
 
     inc_data = im.get_data() + 1
 
     im = nib.Nifti1Image(inc_data, affine=im.affine, header=im.header)
+    
+    out_fn = ('inc-{}'.format(op.basename(fn))
+              if 'inc' not in op.basename(fn)
+              else op.basename(fn))
 
-    out_fn = op.join(outdir, 'inc-{}'.format(op.basename(fn)))
+    out_fn = op.join(outdir, out_fn)
 
     nib.save(im, out_fn)
 
     time.sleep(delay)
-
+    print('Saved image to: ', out_fn)
 
 def main():
 
-    start = time()
-
+    print('Incrementation CLI started')
     parser = argparse.ArgumentParser(description="BigBrain incrementation")
     parser.add_argument('filename', type=str,
                         help=('the file to be incremented'))
@@ -32,7 +38,7 @@ def main():
 
     args = parser.parse_args()
 
-    increment(args.filename, args.outdir, args.delay)
+    increment(args.filename, args.output_dir, args.delay)
 
 
 if __name__ == '__main__':
