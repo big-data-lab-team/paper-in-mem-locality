@@ -2,7 +2,6 @@ dist: trusty
 language: python
 
 python:
-    - 2.7
     - 3.4
     - 3.5
     - 3.6
@@ -14,7 +13,7 @@ jdk:
 install:
     - wget http://apache.mirror.gtcomm.net/spark/spark-2.3.1/spark-2.3.1-bin-hadoop2.7.tgz
     - tar -xzf spark-2.3.1-bin-hadoop2.7.tgz
-    - pip install coveralls pytest pycodestyle pyspark nibabel
+    - pip install coveralls pytest pycodestyle pyspark nibabel nipype
 
 script:
     - export SPARK_HOME=`pwd`/spark-2.3.1-bin-hadoop2.7
