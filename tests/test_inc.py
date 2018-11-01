@@ -127,13 +127,14 @@ def test_increment_nipype_cli():
 
 def test_benchmark_spark():
 
+    shutil.rmtree('inc_out', ignore_errors=True)
     p = subprocess.Popen(['python', 'spark_inc.py', 'sample_data', 'inc_out',
                           '1', '--benchmark'], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE)
     (out, err) = p.communicate()
 
-    app_uuid = str(out).split()[-1][:-3]
-    assert op.isfile('inc_out/benchmark-{}.txt'.format(app_uuid))
+    out = [fn for fn in os.listdir('inc_out') if fn.startswith('benchmark')]
+    assert len(out) == 1
 
 
 def test_benchmark_nipype():
