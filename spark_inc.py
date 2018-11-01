@@ -159,7 +159,7 @@ def main():
 
     # read binary data stored in folder and create an RDD from it
     imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
-    
+
     if not args.cli:
         imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
                                              args.benchmark,

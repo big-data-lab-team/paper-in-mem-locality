@@ -125,6 +125,7 @@ def test_increment_nipype_cli():
 
     assert h_prog_10 == h_exp_10
 
+
 def test_benchmark_spark():
 
     shutil.rmtree('inc_out', ignore_errors=True)
