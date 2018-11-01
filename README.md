@@ -1,6 +1,7 @@
 # SOEN691 Project
 ## Comparative study of Nipype and Spark performance for the efficient processing of neuroimaging data on large-scale parallel infrastructures
-
+### Experiment 0: Incrementation in Nipype and Spark
+https://travis-ci.org/ValHayot/SOEN691-project.svg?branch=experiment0
 ### Experiment 1: Simple binarization in Nipype and Spark
 ### Experiment 2: K-means workflow in Nipype and Spark
 ### Experiment 3: Reimplementation of an existing fMRIPrep workflow in Apache Spark
