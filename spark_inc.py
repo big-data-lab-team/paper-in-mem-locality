@@ -8,6 +8,7 @@ import shutil
 import numpy as np
 import nibabel as nib
 import argparse
+import subprocess
 
 
 def write_bench(name, start_time, end_time, node, output_dir,
@@ -52,13 +53,28 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
     return (filename, data, (im.affine, im.header), bench_file)
 
 
-def increment_data(filename, data, metadata, delay,
-                   benchmark, start, output_dir, bench_file=None):
+def increment_data(filename, data, metadata, delay, benchmark, start,
+                   output_dir, work_dir=None, bench_file=None, cli=False):
 
     start_time = time() - start
 
-    data += 1
-    sleep(delay)
+    if not cli:
+        data += 1
+        sleep(delay)
+    else:
+        work_dir = output_dir if work_dir is None else work_dir
+
+        fn = filename[5:] if 'file:' in filename else filename
+
+        p = subprocess.Popen(['increment.py', fn,
+                              work_dir, '--delay', str(delay)])
+        (out, err) = p.communicate()
+
+        fn = os.path.basename(fn)
+        out_fn = 'inc-{}'.format(fn) if 'inc' not in fn else fn
+        out_fp = os.path.join(work_dir, out_fn)
+
+        filename = out_fp
 
     end_time = time() - start
 
@@ -72,14 +88,18 @@ def increment_data(filename, data, metadata, delay,
 
 
 def save_incremented(filename, data, metadata, benchmark, start,
-                     output_dir, iterations, bench_file=None):
+                     output_dir, iterations, bench_file=None, cli=False):
 
     start_time = time() - start
 
     bn = os.path.basename(filename)
-    im = nib.Nifti1Image(data, metadata[0], header=metadata[1])
     out_fn = os.path.join(output_dir, 'inc{0}-{1}'.format(iterations, bn))
-    nib.save(im, out_fn)
+
+    if not cli:
+        im = nib.Nifti1Image(data, metadata[0], header=metadata[1])
+        nib.save(im, out_fn)
+    else:
+        shutil.copyfile(filename, out_fn)
 
     end_time = time() - start
 
@@ -107,6 +127,9 @@ def main():
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
                         help='benchmark results')
+    parser.add_argument('--cli', action='store_true',
+                        help='use cli program')
+    parser.add_argument('--work_dir', type=str, help="working directory")
 
     args = parser.parse_args()
 
@@ -121,21 +144,32 @@ def main():
                                  'benchmarks-{}'.format(app_uuid))
 
     # read binary data stored in folder and create an RDD from it
-    imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir)) \
-              .map(lambda x: read_img(x[0], x[1],
-                                      args.benchmark,
-                                      start, args.output_dir,
-                                      bench_dir=benchmark_dir))
+    imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
+    
+    if not args.cli:
+        imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
+                                             args.benchmark,
+                                             start, args.output_dir,
+                                             bench_dir=benchmark_dir))
 
-    for i in range(args.iterations):
-        imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], x[2], delay,
-                                                   args.benchmark, start,
-                                                   args.output_dir, x[3]))
+        for i in range(args.iterations):
+            imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], x[2], delay,
+                                                       args.benchmark, start,
+                                                       args.output_dir,
+                                                       bench_dir=x[3]))
+    else:
+        for i in range(args.iterations):
+            imRDD = imRDD.map(lambda x: increment_data(x[0], None, None, delay,
+                                                       args.benchmark, start,
+                                                       args.output_dir,
+                                                       args.work_dir,
+                                                       benchmark_dir,
+                                                       args.cli))
 
     imRDD.map(lambda x: save_incremented(x[0], x[1], x[2],
                                          args.benchmark, start,
                                          args.output_dir,
-                                         args.iterations, x[3])) \
+                                         args.iterations, x[3], args.cli)) \
          .collect()
 
     end = time() - start

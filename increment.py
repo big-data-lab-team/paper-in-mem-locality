@@ -2,7 +2,7 @@
 
 import argparse
 import nibabel as nib
-from os import path as op
+from os import path as op, makedirs as md
 import time
 
 
@@ -38,6 +38,7 @@ def main():
 
     args = parser.parse_args()
 
+    md(args.output_dir, exist_ok=True)
     increment(args.filename, args.output_dir, args.delay)
 
 
