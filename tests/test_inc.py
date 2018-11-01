@@ -33,6 +33,36 @@ def test_increment_spark():
     assert h_prog_10 == h_exp_10
 
 
+def test_increment_spark_cli():
+
+    shutil.rmtree('inc_out', ignore_errors=True)
+    shutil.rmtree('inc_work', ignore_errors=True)
+
+    p = subprocess.Popen(['python', 'spark_inc.py', 'sample_data', 'inc_out',
+                          '1', '--cli', '--work_dir', 'inc_work'])
+    p.communicate()
+
+    h_prog_1 = hashlib.md5(open('inc_out/inc1-dummy_1.nii', 'rb').read()) \
+                      .hexdigest()
+    h_exp_1 = hashlib.md5(open('tests/test_outputs/testinc_1_1.nii', 'rb')
+                          .read()) \
+                     .hexdigest()
+
+    assert h_prog_1 == h_exp_1
+
+    p = subprocess.Popen(['python', 'spark_inc.py', 'sample_data', 'inc_out',
+                          '10', '--cli', '--work_dir', 'inc_work'])
+    p.communicate()
+
+    h_prog_10 = hashlib.md5(open('inc_out/inc10-dummy_1.nii', 'rb').read()) \
+                       .hexdigest()
+    h_exp_10 = hashlib.md5(open('tests/test_outputs/testinc_1_10.nii', 'rb')
+                           .read()) \
+                      .hexdigest()
+
+    assert h_prog_10 == h_exp_10
+
+
 def test_increment_nipype():
 
     shutil.rmtree('nipinc_out', ignore_errors=True)

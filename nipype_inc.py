@@ -107,7 +107,11 @@ def main():
     wf.base_dir = os.path.dirname(args.output_dir)
 
     output_dir = os.path.abspath(args.output_dir)
-    os.makedirs(output_dir, exist_ok=True)
+
+    try:
+        os.makedirs(output_dir)
+    except Exception as e:
+        pass
 
     benchmark_dir = None
     app_uuid = str(uuid.uuid1())
@@ -116,7 +120,10 @@ def main():
         benchmark_dir = os.path.abspath(os.path.join(args.output_dir,
                                                      'benchmarks-{}'.format(
                                                                     app_uuid)))
-        os.makedirs(benchmark_dir, exist_ok=True)
+        try:
+            os.makedirs(benchmark_dir)
+        except Exception as e:
+            pass
 
     # get all files in directory
     bb_files = glob.glob(os.path.join(os.path.abspath(args.bb_dir), '*'))

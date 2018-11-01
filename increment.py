@@ -38,7 +38,11 @@ def main():
 
     args = parser.parse_args()
 
-    md(args.output_dir, exist_ok=True)
+    try:
+        md(args.output_dir)
+    except Exception as e:
+        pass
+
     increment(args.filename, args.output_dir, args.delay)
 
 

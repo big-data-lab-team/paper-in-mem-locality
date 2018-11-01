@@ -2,6 +2,7 @@ dist: trusty
 language: python
 
 python:
+    - 2.7
     - 3.4
     - 3.5
     - 3.6
@@ -14,12 +15,13 @@ install:
     - wget http://apache.mirror.gtcomm.net/spark/spark-2.3.1/spark-2.3.1-bin-hadoop2.7.tgz
     - tar -xzf spark-2.3.1-bin-hadoop2.7.tgz
     - sudo apt-get install pandoc
-    - pip install coveralls pytest pycodestyle pyspark nibabel nipype
+    - pip install pypandoc coveralls pytest pycodestyle pyspark nibabel nipype
 
 script:
     - export SPARK_HOME=`pwd`/spark-2.3.1-bin-hadoop2.7
     - export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
     - export PYTHONPATH=$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$PYTHONPATH
+    - cp increment.py /bin
     - pycodestyle spark_inc.py tests/test_inc.py
     - pytest -q tests/test_inc.py
 

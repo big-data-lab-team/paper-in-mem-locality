@@ -17,7 +17,11 @@ def write_bench(name, start_time, end_time, node, output_dir,
     if not benchmark_file:
         assert benchmark_dir, 'benchmark_dir parameter has not been defined.'
 
-        os.makedirs(benchmark_dir, exist_ok=True)
+        try:
+            os.makedirs(benchmark_dir)
+        except Exception as e:
+            pass
+
         benchmark_file = os.path.join(
                 benchmark_dir,
                 "bench-{}.txt".format(str(uuid.uuid1()))
@@ -79,10 +83,15 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
     end_time = time() - start
 
     if benchmark:
+        bench_dir = None
+        if os.path.isdir(bench_file):
+            bench_dir = bench_file
+            bench_file = None
+
         bn = os.path.basename(filename)
         write_bench('increment_data', start_time, end_time,
                     socket.gethostname(), output_dir, bn,
-                    benchmark_file=bench_file)
+                    bench_dir, bench_file)
 
     return (filename, data, metadata, bench_file)
 
@@ -137,7 +146,12 @@ def main():
     sc = SparkContext.getOrCreate(conf=conf)
 
     delay = args.delay
-    os.makedirs(args.output_dir, exist_ok=True)
+
+    try:
+        os.makedirs(args.output_dir)
+    except Exception as e:
+        pass
+
     app_uuid = str(uuid.uuid1())
     print('Application id: ', app_uuid)
     benchmark_dir = os.path.join(args.output_dir,
@@ -156,7 +170,7 @@ def main():
             imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], x[2], delay,
                                                        args.benchmark, start,
                                                        args.output_dir,
-                                                       bench_dir=x[3]))
+                                                       bench_file=x[3]))
     else:
         for i in range(args.iterations):
             imRDD = imRDD.map(lambda x: increment_data(x[0], None, None, delay,
