@@ -95,6 +95,7 @@ def main():
     parser.add_argument('iterations', type=int, help='number of iterations')
     parser.add_argument('--cli', action='store_true', 
                         help='use CLI application')
+    parser.add_argument('--work_dir', type=str, help='working directory')
     parser.add_argument('--delay', type=int, default=0,
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
@@ -104,7 +105,9 @@ def main():
 
     start = time()
     wf = Workflow('nipinc_bb')
-    wf.base_dir = os.path.dirname(args.output_dir)
+
+    if args.work_dir is not None:
+        wf.base_dir = os.path.abspath(args.work_dir)
 
     output_dir = os.path.abspath(args.output_dir)
 
