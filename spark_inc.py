@@ -147,15 +147,21 @@ def main():
 
     delay = args.delay
 
+    output_dir = os.path.abspath(args.output_dir)
     try:
-        os.makedirs(args.output_dir)
+        os.makedirs(output_dir)
     except Exception as e:
         pass
 
     app_uuid = str(uuid.uuid1())
     print('Application id: ', app_uuid)
-    benchmark_dir = os.path.join(args.output_dir,
+    benchmark_dir = os.path.join(output_dir,
                                  'benchmarks-{}'.format(app_uuid))
+    try:
+        print('Creating benchmark directory at ', benchmark_dir)
+        os.makedirs(benchmark_dir)
+    except Exception as e:
+        pass
 
     # read binary data stored in folder and create an RDD from it
     imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
@@ -163,26 +169,27 @@ def main():
     if not args.cli:
         imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
                                              args.benchmark,
-                                             start, args.output_dir,
+                                             start, output_dir,
                                              bench_dir=benchmark_dir))
 
         for i in range(args.iterations):
             imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], x[2], delay,
                                                        args.benchmark, start,
-                                                       args.output_dir,
+                                                       output_dir,
                                                        bench_file=x[3]))
     else:
+        work_dir = os.path.abspath(args.work_dir)
         for i in range(args.iterations):
             imRDD = imRDD.map(lambda x: increment_data(x[0], None, None, delay,
                                                        args.benchmark, start,
-                                                       args.output_dir,
-                                                       args.work_dir,
+                                                       output_dir,
+                                                       work_dir,
                                                        benchmark_dir,
                                                        args.cli))
 
     imRDD.map(lambda x: save_incremented(x[0], x[1], x[2],
                                          args.benchmark, start,
-                                         args.output_dir,
+                                         output_dir,
                                          args.iterations, x[3], args.cli)) \
          .collect()
 
@@ -190,9 +197,9 @@ def main():
 
     if args.benchmark:
         fname = 'benchmark-{}.txt'.format(app_uuid)
-        benchmark_file = os.path.join(args.output_dir, fname)
-        write_bench('driver program', start, end, socket.gethostname(),
-                    args.output_dir, 'allfiles', benchmark_file=benchmark_file)
+        benchmark_file = os.path.join(output_dir, fname)
+        write_bench('driver program', 0, end, socket.gethostname(),
+                    output_dir, 'allfiles', benchmark_file=benchmark_file)
 
         with open(benchmark_file, 'a+') as bench:
             for b in os.listdir(benchmark_dir):
