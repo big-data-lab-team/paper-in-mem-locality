@@ -75,7 +75,6 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
 
         fn = filename[5:] if 'file:' in filename else filename
 
-
         p = subprocess.Popen(['increment.py', fn,
                               work_dir, '--delay', str(delay)])
         (out, err) = p.communicate()
@@ -88,8 +87,8 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
 
     end_time = time() - start
 
+    bench_dir = None
     if benchmark:
-        bench_dir = None
         if os.path.isdir(bench_file):
             bench_dir = bench_file
             bench_file = None
@@ -122,7 +121,8 @@ def save_incremented(filename, data, metadata, benchmark, start,
     end_time = time() - start
 
     if benchmark:
-	if os.path.isdir(bench_file):
+        bench_dir = None
+        if os.path.isdir(bench_file):
             bench_dir = bench_file
             bench_file = None
         write_bench('save_incremented', start_time, end_time,
