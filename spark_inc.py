@@ -103,9 +103,9 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
                     bench_dir, bench_file)
 
     if bench_file is not None:
-        return (filename, data, metadata, iteration + 1, bench_file)
+        return (filename, data, metadata, bench_file, iteration + 1)
     else:
-        return (filename, data, metadata, iteration + 1, bench_dir)
+        return (filename, data, metadata, bench_dir, iteration + 1)
 
 
 def save_incremented(filename, data, metadata, benchmark, start,
@@ -208,7 +208,7 @@ def main():
             imRDD = imRDD.map(lambda x: increment_data(x[0], None, None, delay,
                                                        args.benchmark, start,
                                                        output_dir,
-                                                       x[3],
+                                                       x[4],
                                                        work_dir,
                                                        benchmark_dir,
                                                        args.cli))
