@@ -68,7 +68,13 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
     else:
         work_dir = output_dir if work_dir is None else work_dir
 
+        try:
+            os.makedirs(work_dir)
+        except Exception as e:
+            pass
+
         fn = filename[5:] if 'file:' in filename else filename
+
 
         p = subprocess.Popen(['increment.py', fn,
                               work_dir, '--delay', str(delay)])
@@ -93,7 +99,10 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
                     socket.gethostname(), output_dir, bn,
                     bench_dir, bench_file)
 
-    return (filename, data, metadata, bench_file)
+    if bench_file is not None:
+        return (filename, data, metadata, bench_file)
+    else:
+        return (filename, data, metadata, bench_dir)
 
 
 def save_incremented(filename, data, metadata, benchmark, start,
@@ -113,9 +122,12 @@ def save_incremented(filename, data, metadata, benchmark, start,
     end_time = time() - start
 
     if benchmark:
+	if os.path.isdir(bench_file):
+            bench_dir = bench_file
+            bench_file = None
         write_bench('save_incremented', start_time, end_time,
                     socket.gethostname(), output_dir, bn,
-                    benchmark_file=bench_file)
+                    benchmark_dir=bench_dir, benchmark_file=bench_file)
 
     return (out_fn, 'SUCCESS')
 

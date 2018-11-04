@@ -88,7 +88,7 @@ def main():
                                      "nipype incrementation")
     parser.add_argument('bb_dir', type=str,
                         help='The folder containing BigBrain NIfTI images '
-                             '(local fs only)')
+                             '(local fs only) or image file')
     parser.add_argument('output_dir', type=str,
                         help='the folder to save incremented images to '
                              '(local fs only)')
@@ -128,8 +128,16 @@ def main():
         except Exception as e:
             pass
 
-    # get all files in directory
-    bb_files = glob.glob(os.path.join(os.path.abspath(args.bb_dir), '*'))
+  
+    bb_dir = os.path.abspath(args.bb_dir)
+
+    if os.path.isdir(bb_dir):
+        # get all files in directory
+        bb_files = glob.glob(os.path.join(os.path.abspath(args.bb_dir), '*'))
+    elif os.path.isfile(bb_dir):
+        bb_files = [bb_dir]
+    else:
+        bb_files = bb_dir.split(',')
 
     assert args.iterations > 0
 
