@@ -202,7 +202,7 @@ def main():
         print(benchmark_file)
 
         with open(benchmark_file, 'a+') as bench:
-            bench.write('{0} {1} {2} {3} {4}\n'.format('driver program', 0,
+            bench.write('{0} {1} {2} {3} {4}\n'.format('driver_program', start,
                                                        end,
                                                        socket.gethostname(),
                                                        'allfiles'))

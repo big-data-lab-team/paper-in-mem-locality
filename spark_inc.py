@@ -224,7 +224,7 @@ def main():
     if args.benchmark:
         fname = 'benchmark-{}.txt'.format(app_uuid)
         benchmark_file = os.path.join(output_dir, fname)
-        write_bench('driver program', 0, end, socket.gethostname(),
+        write_bench('driver_program', 0, end, socket.gethostname(),
                     output_dir, 'allfiles', benchmark_file=benchmark_file)
 
         with open(benchmark_file, 'a+') as bench:
