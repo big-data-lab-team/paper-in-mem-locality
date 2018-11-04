@@ -67,6 +67,9 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
         sleep(delay)
     else:
         work_dir = output_dir if work_dir is None else work_dir
+        it_dir = "iteration-{}".format(str(uuid.uuid1()))
+
+        work_dir = os.path.join(work_dir, it_dir)
 
         try:
             os.makedirs(work_dir)
