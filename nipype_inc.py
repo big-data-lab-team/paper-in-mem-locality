@@ -18,6 +18,7 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
     import socket
     import uuid
     import subprocess
+    import shutil
     from time import time
 
     start_time = time() - start
@@ -31,7 +32,7 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
             f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
                                                    node, filename))
 
-    inc_file = os.path.basename(chunk)
+    inc_chunk = os.path.basename(chunk)
 
     if not cli:
         im = nib.load(chunk)
@@ -40,39 +41,37 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
         data += 1
 
         inc_im = nib.Nifti1Image(data, im.affine)
+        nib.save(inc_im, inc_chunk)
 
+        inc_file = os.path.abspath(inc_chunk)
 
         if final:
             print("Saving final results to output folder: "
                   "{}".format(output_dir))
-            inc_file = os.path.join(output_dir, 'inc{}-{}'.format(it, inc_file))
-
-        nib.save(inc_im, inc_file)
-        inc_file = os.path.abspath(inc_file)
+            inc_out = os.path.join(output_dir,
+                                   'inc{}-{}'.format(it, inc_chunk))
+            shutil.copy(inc_file, inc_out)
 
     else:
         program = 'increment.py'
-        if final:
-            print("Saving final results to output folder: "
-                  "{}".format(output_dir))
-            p = subprocess.Popen([program, chunk, output_dir,
-                                  '--delay', str(delay)],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-            (out, err) = p.communicate()
-            inc_file = os.path.join(output_dir, 'inc-{}'.format(inc_file))
-            print(out,err) 
-        else:
-            p = subprocess.Popen([program, chunk, os.getcwd(),
-                                  '--delay', str(delay)],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-            (out, err) = p.communicate()
-            if 'inc' not in inc_file:
-                inc_file = 'inc-{}'.format(inc_file)
-            inc_file = os.path.join(os.getcwd(), inc_file)
-            print(out, err)
 
+        p = subprocess.Popen([program, chunk, os.getcwd(),
+                              '--delay', str(delay)],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        (out, err) = p.communicate()
+        if 'inc' not in inc_chunk:
+            inc_chunk = 'inc-{}'.format(inc_chunk)
+        inc_file = os.path.join(os.getcwd(), inc_chunk)
+        print(out, err)
+        print(final)
+        if final:
+            print("Saving final results to output folder***: "
+                  "{}".format(output_dir))
+            inc_out = os.path.join(output_dir, inc_chunk)
+            shutil.copy(inc_file, inc_out)
+            print(out, err)
+            inc_file = inc_out
 
     end_time = time() - start
 
@@ -93,7 +92,7 @@ def main():
                         help='the folder to save incremented images to '
                              '(local fs only)')
     parser.add_argument('iterations', type=int, help='number of iterations')
-    parser.add_argument('--cli', action='store_true', 
+    parser.add_argument('--cli', action='store_true',
                         help='use CLI application')
     parser.add_argument('--work_dir', type=str, help='working directory')
     parser.add_argument('--delay', type=int, default=0,
@@ -128,7 +127,6 @@ def main():
         except Exception as e:
             pass
 
-  
     bb_dir = os.path.abspath(args.bb_dir)
 
     if os.path.isdir(bb_dir):
