@@ -58,8 +58,9 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 
 
 def increment_data(filename, data, metadata, delay, benchmark, start,
-                   output_dir, work_dir=None, bench_file=None, cli=False):
-
+                   output_dir, iteration=0, work_dir=None, bench_file=None,
+                   cli=False):
+    print(iteration)
     start_time = time() - start
 
     if not cli:
@@ -67,7 +68,7 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
         sleep(delay)
     else:
         work_dir = output_dir if work_dir is None else work_dir
-        it_dir = "iteration-{}".format(str(uuid.uuid1()))
+        it_dir = "iteration-{}".format(iteration)
 
         work_dir = os.path.join(work_dir, it_dir)
 
@@ -102,9 +103,9 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
                     bench_dir, bench_file)
 
     if bench_file is not None:
-        return (filename, data, metadata, bench_file)
+        return (filename, data, metadata, iteration + 1, bench_file)
     else:
-        return (filename, data, metadata, bench_dir)
+        return (filename, data, metadata, iteration + 1, bench_dir)
 
 
 def save_incremented(filename, data, metadata, benchmark, start,
@@ -193,11 +194,21 @@ def main():
                                                        output_dir,
                                                        bench_file=x[3]))
     else:
-        work_dir = os.path.abspath(args.work_dir)
-        for i in range(args.iterations):
+        work_dir = os.path.abspath(os.path.join(args.work_dir,
+                                                'app-{}'.format(app_uuid)))
+
+        imRDD = imRDD.map(lambda x: increment_data(x[0], None, None, delay,
+                                                   args.benchmark, start,
+                                                   output_dir,
+                                                   0,
+                                                   work_dir,
+                                                   benchmark_dir,
+                                                   args.cli))
+        for i in range(1, args.iterations):
             imRDD = imRDD.map(lambda x: increment_data(x[0], None, None, delay,
                                                        args.benchmark, start,
                                                        output_dir,
+                                                       x[3],
                                                        work_dir,
                                                        benchmark_dir,
                                                        args.cli))
