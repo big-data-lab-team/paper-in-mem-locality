@@ -10,7 +10,7 @@ import uuid
 import socket
 
 
-def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
+def increment_chunk(chunk, delay, benchmark, output_dir=None,
                     benchmark_dir=None, final=True, it=0, cli=False):
     import nibabel as nib
     import numpy as np
@@ -21,7 +21,7 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
     import shutil
     from time import time
 
-    start_time = time() - start
+    start_time = time()
 
     def write_bench(name, start_time, end_time, node, benchmark_dir, filename):
 
@@ -73,7 +73,7 @@ def increment_chunk(chunk, delay, benchmark, start, output_dir=None,
             print(out, err)
             inc_file = inc_out
 
-    end_time = time() - start
+    end_time = time()
 
     if benchmark:
         write_bench('inc_chunk', start_time, end_time, socket.gethostname(),
@@ -140,7 +140,7 @@ def main():
     assert args.iterations > 0
 
     inc_1 = MapNode(Function(input_names=['chunk', 'delay',
-                                          'benchmark', 'start',
+                                          'benchmark',
                                           'output_dir', 'benchmark_dir',
                                           'final', 'it', 'cli'],
                              output_names=['inc_chunk'],
@@ -153,7 +153,6 @@ def main():
     inc_1.inputs.output_dir = output_dir
     inc_1.inputs.benchmark_dir = benchmark_dir
     inc_1.inputs.benchmark = args.benchmark
-    inc_1.inputs.start = start
     inc_1.inputs.cli = args.cli
 
     if args.iterations == 1:
@@ -167,7 +166,7 @@ def main():
     for i in range(0, args.iterations - 1):
         node_name = 'inc_bb{}'.format(i+1)
         inc_2 = MapNode(Function(input_names=['chunk', 'delay',
-                                              'benchmark', 'start',
+                                              'benchmark',
                                               'output_dir', 'benchmark_dir',
                                               'final', 'it', 'cli'],
                                  output_names=['inc_chunk'],
@@ -179,7 +178,6 @@ def main():
         inc_2.inputs.output_dir = output_dir
         inc_2.inputs.benchmark_dir = benchmark_dir
         inc_2.inputs.benchmark = args.benchmark
-        inc_2.inputs.start = start
         inc_2.inputs.it = i + 2
         inc_2.inputs.cli = args.cli
 
@@ -194,7 +192,7 @@ def main():
 
     wf.run(plugin='MultiProc')
 
-    end = time() - start
+    end = time()
 
     if args.benchmark:
         fname = 'benchmark-{}.txt'.format(app_uuid)
