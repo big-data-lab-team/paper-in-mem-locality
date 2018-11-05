@@ -1,6 +1,7 @@
 from pyspark import SparkContext, SparkConf
 from io import BytesIO
 from time import sleep, time
+from glob import glob
 import os
 import socket
 import uuid
@@ -60,7 +61,6 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 def increment_data(filename, data, metadata, delay, benchmark, start,
                    output_dir, iteration=0, work_dir=None, bench_file=None,
                    cli=False):
-    print(iteration)
     start_time = time() - start
 
     if not cli:
@@ -77,7 +77,7 @@ def increment_data(filename, data, metadata, delay, benchmark, start,
         except Exception as e:
             pass
 
-        fn = filename[5:] if 'file:' in filename else filename
+        fn = filename[5:] if 'file:' in filename else os.path.abspath(filename)
 
         p = subprocess.Popen(['increment.py', fn,
                               work_dir, '--delay', str(delay)])
@@ -180,9 +180,9 @@ def main():
         pass
 
     # read binary data stored in folder and create an RDD from it
-    imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
 
     if not args.cli:
+        imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
         imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
                                              args.benchmark,
                                              start, output_dir,
@@ -194,6 +194,9 @@ def main():
                                                        output_dir,
                                                        bench_file=x[3]))
     else:
+        # get all filenames
+        files = glob(os.path.join(args.bb_dir, '*'))
+        imRDD = sc.parallelize(files, len(files)).glom()
         work_dir = os.path.abspath(os.path.join(args.work_dir,
                                                 'app-{}'.format(app_uuid)))
 
