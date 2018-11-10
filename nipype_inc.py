@@ -8,6 +8,10 @@ import shutil
 import glob
 import uuid
 import socket
+try:
+    from threading import get_ident
+except Exception as e:
+    from threading.Thread import get_ident
 
 
 def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
@@ -15,16 +19,23 @@ def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
     import os
     import socket
     import subprocess
+    import uuid
     from time import time
+    try:
+        from threading import get_ident
+    except Exception as e:
+        from threading.Thread import get_ident
 
-    def write_bench(name, start_time, end_time, node, benchmark_dir, filename):
+    def write_bench(name, start_time, end_time, node, benchmark_dir,
+                    filename, executor):
 
         benchmark_file = os.path.join(benchmark_dir,
                                       "bench-{}.txt".format(str(uuid.uuid1())))
 
         with open(benchmark_file, 'a+') as f:
-            f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
-                                                   node, filename))
+            f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time,
+                                                       end_time, node,
+                                                       filename, executor))
 
     start_time = time()
 
@@ -58,7 +69,7 @@ def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
 
     if benchmark and benchmark_dir:
         write_bench('inc_chunk', start_time, end_time, socket.gethostname(),
-                    benchmark_dir, os.path.basename(chunk))
+                    benchmark_dir, os.path.basename(chunk), get_ident())
 
     return inc_file
 
@@ -68,15 +79,25 @@ def save_results(input_img, output_dir, it=0, benchmark=True,
     import shutil
     from os import path as op
     from time import time
+    import uuid
+    import socket
 
-    def write_bench(name, start_time, end_time, node, benchmark_dir, filename):
+    try:
+        from threading import get_ident
+    except Exception as e:
+        from threading.Thread import get_ident
 
-        benchmark_file = os.path.join(benchmark_dir,
-                                      "bench-{}.txt".format(str(uuid.uuid1())))
+    def write_bench(name, start_time, end_time, node, benchmark_dir, filename,
+                    executor):
+
+        benchmark_file = op.join(benchmark_dir,
+                                 "bench-{}.txt".format(str(uuid.uuid1())))
 
         with open(benchmark_file, 'a+') as f:
-            f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
-                                                   node, filename))
+            f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time,
+                                                       end_time,
+                                                       node, filename,
+                                                       executor))
 
     start = time()
 
@@ -91,7 +112,7 @@ def save_results(input_img, output_dir, it=0, benchmark=True,
 
     if benchmark and benchmark_dir:
         write_bench('save_results', start, end, socket.gethostname(),
-                    benchmark_dir, output_name)
+                    benchmark_dir, outimg_name, get_ident())
 
     return output_file
 
@@ -219,10 +240,13 @@ def main():
         print(benchmark_file)
 
         with open(benchmark_file, 'a+') as bench:
-            bench.write('{0} {1} {2} {3} {4}\n'.format('driver_program', start,
-                                                       end,
-                                                       socket.gethostname(),
-                                                       'allfiles'))
+            bench.write('{0} {1} {2} {3} {4} {5}\n'.format('driver_program',
+                                                           start,
+                                                           end,
+                                                           socket
+                                                           .gethostname(),
+                                                           'allfiles',
+                                                           get_ident()))
 
             for b in os.listdir(benchmark_dir):
                 with open(os.path.join(benchmark_dir, b), 'r') as f:
