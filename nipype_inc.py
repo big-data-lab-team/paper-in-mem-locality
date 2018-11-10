@@ -139,58 +139,61 @@ def main():
 
     assert args.iterations > 0
 
-    inc_1 = MapNode(Function(input_names=['chunk', 'delay',
+    count = 0
+    for chunk in bb_files:
+    	inc_1 = Node(Function(input_names=['chunk', 'delay',
                                           'benchmark',
                                           'output_dir', 'benchmark_dir',
                                           'final', 'it', 'cli'],
                              output_names=['inc_chunk'],
                              function=increment_chunk),
-                    iterfield=['chunk'],
-                    name='inc_bb')
+                    name='inc_bb{}'.format(str(uuid.uuid1())))
 
-    inc_1.inputs.chunk = bb_files
-    inc_1.inputs.delay = args.delay
-    inc_1.inputs.output_dir = output_dir
-    inc_1.inputs.benchmark_dir = benchmark_dir
-    inc_1.inputs.benchmark = args.benchmark
-    inc_1.inputs.cli = args.cli
+    	inc_1.inputs.chunk = chunk
+    	inc_1.inputs.delay = args.delay
+    	inc_1.inputs.output_dir = output_dir
+    	inc_1.inputs.benchmark_dir = benchmark_dir
+    	inc_1.inputs.benchmark = args.benchmark
+    	inc_1.inputs.cli = args.cli
 
-    if args.iterations == 1:
-        inc_1.inputs.final = True
-    else:
-        inc_1.inputs.final = False
+        if args.iterations == 1:
+	    inc_1.inputs.final = True
+        else:
+	    inc_1.inputs.final = False
 
-    inc_1.inputs.it = 1
-    wf.add_nodes([inc_1])
+        inc_1.inputs.it = 1
+        wf.add_nodes([inc_1])
 
-    for i in range(0, args.iterations - 1):
-        node_name = 'inc_bb{}'.format(i+1)
-        inc_2 = MapNode(Function(input_names=['chunk', 'delay',
+        for i in range(0, args.iterations - 1):
+            node_name = 'inc_bb{0}_{1}'.format(count, i+1)
+            inc_2 = Node(Function(input_names=['chunk', 'delay',
                                               'benchmark',
                                               'output_dir', 'benchmark_dir',
                                               'final', 'it', 'cli'],
                                  output_names=['inc_chunk'],
                                  function=increment_chunk),
-                        iterfield=['chunk'],
                         name=node_name)
 
-        inc_2.inputs.delay = args.delay
-        inc_2.inputs.output_dir = output_dir
-        inc_2.inputs.benchmark_dir = benchmark_dir
-        inc_2.inputs.benchmark = args.benchmark
-        inc_2.inputs.it = i + 2
-        inc_2.inputs.cli = args.cli
+            inc_2.inputs.delay = args.delay
+            inc_2.inputs.output_dir = output_dir
+            inc_2.inputs.benchmark_dir = benchmark_dir
+            inc_2.inputs.benchmark = args.benchmark
+            inc_2.inputs.it = i + 2
+            inc_2.inputs.cli = args.cli
 
-        if i + 1 == args.iterations - 1:
-            inc_2.inputs.final = True
-        else:
-            inc_2.inputs.final = False
+            if i + 1 == args.iterations - 1:
+                inc_2.inputs.final = True
+            else:
+                inc_2.inputs.final = False
 
-        wf.connect([(inc_1, inc_2, [('inc_chunk', 'chunk')])])
+            wf.connect([(inc_1, inc_2, [('inc_chunk', 'chunk')])])
 
-        inc_1 = inc_2
+            inc_1 = inc_2
 
-    wf.run(plugin='MultiProc')
+        count += 1
+
+    wf.run(plugin='MultiProc', plugin_args={'n_procs': 25})
+    wf.write_graph(graph2use='colored')
 
     end = time()
 

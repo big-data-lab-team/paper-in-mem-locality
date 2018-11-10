@@ -4,15 +4,53 @@ import argparse
 import nibabel as nib
 from os import path as op, makedirs as md
 import time
-
+import subprocess
 
 def increment(fn, outdir, delay):
     print('Incrementing image: ', fn)
-    im = nib.load(fn)
+    '''
+    p = subprocess.Popen("iostat -y 1 1", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
 
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))
+    '''
+    start = time.time()
+    im = nib.load(fn)
+    print("read time", time.time() - start)
+    '''p = subprocess.Popen("iostat -y 1 1", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))'''
     inc_data = im.get_data() + 1
 
     im = nib.Nifti1Image(inc_data, affine=im.affine, header=im.header)
+
+    '''p = subprocess.Popen("top -b -n 1 | head -n 10 | tail -n 2", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))
+
+    p = subprocess.Popen("lsof /local", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))
+
+    p = subprocess.Popen("ps -ef", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))
+
+
+    p = subprocess.Popen("free", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))'''
     
     out_fn = ('inc-{}'.format(op.basename(fn))
               if 'inc' not in op.basename(fn)
@@ -20,8 +58,21 @@ def increment(fn, outdir, delay):
 
     out_fn = op.join(outdir, out_fn)
 
-    nib.save(im, out_fn)
+    '''p = subprocess.Popen("iostat -y 1 1", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
 
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))'''
+
+    start = time.time()
+    nib.save(im, out_fn)
+    print("write time", time.time() - start)
+
+    '''p = subprocess.Popen("iostat -y 1 1", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (out, err) = p.communicate()
+
+    print(out.encode("utf-8"))
+    print(err.encode("utf-8"))'''
     time.sleep(delay)
     print('Saved image to: ', out_fn)
 
