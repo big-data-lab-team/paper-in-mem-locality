@@ -123,8 +123,15 @@ def save_incremented(idx, filename, data, metadata, benchmark, start,
     else:
         try:
             shutil.copyfile(filename, out_fn)
-        except:
-            raise Exception("****ERROR**** {0} {1} {2}".format(filename, socket.gethostname(), os.listdir(os.path.dirname(filename))))
+        except Exception as e:
+            raise Exception("****ERROR****"
+                            " {0} {1} {2}".format(filename,
+                                                  socket.gethostname(),
+                                                  os.listdir(
+                                                      os.path.dirname(
+                                                          filename
+                                                      )
+                                                  )))
 
     end_time = time() - start
 
@@ -186,7 +193,7 @@ def main():
     # read binary data stored in folder and create an RDD from it
 
     if not args.cli:
-    	imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
+        imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
         imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
                                              args.benchmark,
                                              start, output_dir,
@@ -200,33 +207,35 @@ def main():
     else:
         # get all filenames
         files = glob(os.path.join(args.bb_dir, '*'))
-	fidx = [i for i in range(0, len(files))]
+        fidx = [i for i in range(0, len(files))]
         imRDD = sc.parallelize(zip(fidx, files), len(files))
         work_dir = os.path.abspath(os.path.join(args.work_dir,
                                                 'app-{}'.format(app_uuid)))
-	print(work_dir)
+        print(work_dir)
 
-        imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], None, None, delay,
-                                                   args.benchmark, start,
-                                                   output_dir,
-                                                   0,
+        imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], None, None,
+                                                   delay, args.benchmark,
+                                                   start, output_dir, 0,
                                                    work_dir,
                                                    benchmark_dir,
-                                                   args.cli), preservesPartitioning=True)
+                                                   args.cli),
+                          preservesPartitioning=True)
+
         for i in range(1, args.iterations):
-            imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], None, None, delay,
-                                                       args.benchmark, start,
-                                                       output_dir,
+            imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], None, None,
+                                                       delay, args.benchmark,
+                                                       start, output_dir,
                                                        x[5],
                                                        work_dir,
                                                        benchmark_dir,
-                                                       args.cli), preservesPartitioning=True)
+                                                       args.cli),
+                              preservesPartitioning=True)
 
     imRDD.map(lambda x: save_incremented(x[0], x[1], x[2], x[3],
-                                         args.benchmark, start, 
+                                         args.benchmark, start,
                                          output_dir,
-                                         args.iterations, x[4], args.cli), preservesPartitioning=True) \
-         .collect()
+                                         args.iterations, x[4], args.cli),
+              preservesPartitioning=True).collect()
 
     end = time() - start
 
