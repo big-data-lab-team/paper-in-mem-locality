@@ -134,6 +134,7 @@ def main():
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
                         help='benchmark pipeline')
+    parser.add_argument('--nprocs', type=int, help='Number of cores')
 
     args = parser.parse_args()
 
@@ -229,7 +230,11 @@ def main():
 
         count += 1
 
-    wf.run(plugin='MultiProc', plugin_args={'n_procs': 25})
+    if args.nprocs is not None:
+        wf.run(plugin='MultiProc', plugin_args={'n_procs': args.nprocs})
+    else:
+        wf.run(plugin='MultiProc')
+
     wf.write_graph(graph2use='colored')
 
     end = time()
