@@ -10,10 +10,14 @@ import numpy as np
 import nibabel as nib
 import argparse
 import subprocess
+try:
+    from threading import get_ident
+except Exception as e:
+    from thread import get_ident
 
 
 def write_bench(name, start_time, end_time, node, output_dir,
-                filename, benchmark_dir=None, benchmark_file=None):
+                filename, executor, benchmark_dir=None, benchmark_file=None):
 
     if not benchmark_file:
         assert benchmark_dir, 'benchmark_dir parameter has not been defined.'
@@ -29,8 +33,8 @@ def write_bench(name, start_time, end_time, node, output_dir,
                 )
 
     with open(benchmark_file, 'a+') as f:
-        f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
-                                               node, filename))
+        f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time, end_time,
+                                               node, filename, executor))
 
     return benchmark_file
 
@@ -53,7 +57,7 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
     if benchmark:
         bench_file = write_bench('read_img', start_time, end_time,
                                  socket.gethostname(), output_dir, bn,
-                                 benchmark_dir=bench_dir)
+                                 get_ident(), benchmark_dir=bench_dir)
 
     return (socket.gethostname(), filename, data, (im.affine, im.header),
             bench_file)
@@ -101,7 +105,7 @@ def increment_data(idx, filename, data, metadata, delay, benchmark, start,
         bn = os.path.basename(filename)
         write_bench('increment_data', start_time, end_time,
                     socket.gethostname(), output_dir, bn,
-                    bench_dir, bench_file)
+                    get_ident(), bench_dir, bench_file)
 
     if bench_file is not None:
         return (idx, filename, data, metadata, bench_file, iteration + 1)
@@ -114,7 +118,7 @@ def save_incremented(idx, filename, data, metadata, benchmark, start,
 
     start_time = time() - start
 
-    bn = os.path.basename(filename)
+    bn = os.path.basename(filename).replace('inc-', '')
     out_fn = os.path.join(output_dir, 'inc{0}-{1}'.format(iterations, bn))
 
     if not cli:
@@ -141,7 +145,7 @@ def save_incremented(idx, filename, data, metadata, benchmark, start,
             bench_dir = bench_file
             bench_file = None
         write_bench('save_incremented', start_time, end_time,
-                    socket.gethostname(), output_dir, bn,
+                    socket.gethostname(), output_dir, bn, get_ident(),
                     benchmark_dir=bench_dir, benchmark_file=bench_file)
 
     return (out_fn, 'SUCCESS')
@@ -243,7 +247,8 @@ def main():
         fname = 'benchmark-{}.txt'.format(app_uuid)
         benchmark_file = os.path.join(output_dir, fname)
         write_bench('driver_program', 0, end, socket.gethostname(),
-                    output_dir, 'allfiles', benchmark_file=benchmark_file)
+                    output_dir, 'allfiles', get_ident(), 
+                    benchmark_file=benchmark_file)
 
         with open(benchmark_file, 'a+') as bench:
             for b in os.listdir(benchmark_dir):

@@ -11,7 +11,7 @@ import socket
 try:
     from threading import get_ident
 except Exception as e:
-    from threading.Thread import get_ident
+    from thread import get_ident
 
 
 def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
@@ -24,7 +24,7 @@ def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
     try:
         from threading import get_ident
     except Exception as e:
-        from threading.Thread import get_ident
+        from thread import get_ident
 
     def write_bench(name, start_time, end_time, node, benchmark_dir,
                     filename, executor):
@@ -85,7 +85,7 @@ def save_results(input_img, output_dir, it=0, benchmark=True,
     try:
         from threading import get_ident
     except Exception as e:
-        from threading.Thread import get_ident
+        from thread import get_ident
 
     def write_bench(name, start_time, end_time, node, benchmark_dir, filename,
                     executor):

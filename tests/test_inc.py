@@ -42,7 +42,7 @@ def test_increment_spark_cli():
                           '1', '--cli', '--work_dir', 'inc_work'])
     p.communicate()
 
-    h_prog_1 = hashlib.md5(open('inc_out/inc1-inc-dummy_1.nii', 'rb').read()) \
+    h_prog_1 = hashlib.md5(open('inc_out/inc1-dummy_1.nii', 'rb').read()) \
                       .hexdigest()
     h_exp_1 = hashlib.md5(open('tests/test_outputs/testinc_1_1.nii', 'rb')
                           .read()) \
@@ -54,7 +54,7 @@ def test_increment_spark_cli():
                           '10', '--cli', '--work_dir', 'inc_work'])
     p.communicate()
 
-    h_prog_10 = hashlib.md5(open('inc_out/inc10-inc-dummy_1.nii',
+    h_prog_10 = hashlib.md5(open('inc_out/inc10-dummy_1.nii',
                                  'rb').read()) \
                        .hexdigest()
     h_exp_10 = hashlib.md5(open('tests/test_outputs/testinc_1_10.nii', 'rb')
