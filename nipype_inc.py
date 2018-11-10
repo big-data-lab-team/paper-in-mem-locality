@@ -10,18 +10,12 @@ import uuid
 import socket
 
 
-def increment_chunk(chunk, delay, benchmark, output_dir=None,
-                    benchmark_dir=None, final=True, it=0, cli=False):
+def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
     import nibabel as nib
-    import numpy as np
     import os
     import socket
-    import uuid
     import subprocess
-    import shutil
     from time import time
-
-    start_time = time()
 
     def write_bench(name, start_time, end_time, node, benchmark_dir, filename):
 
@@ -31,6 +25,8 @@ def increment_chunk(chunk, delay, benchmark, output_dir=None,
         with open(benchmark_file, 'a+') as f:
             f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
                                                    node, filename))
+
+    start_time = time()
 
     inc_chunk = os.path.basename(chunk)
 
@@ -45,41 +41,59 @@ def increment_chunk(chunk, delay, benchmark, output_dir=None,
 
         inc_file = os.path.abspath(inc_chunk)
 
-        if final:
-            print("Saving final results to output folder: "
-                  "{}".format(output_dir))
-            inc_out = os.path.join(output_dir,
-                                   'inc{}-{}'.format(it, inc_chunk))
-            shutil.copy(inc_file, inc_out)
-
     else:
         program = 'increment.py'
-
         p = subprocess.Popen([program, chunk, os.getcwd(),
                               '--delay', str(delay)],
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
         (out, err) = p.communicate()
-        if 'inc' not in inc_chunk:
+        print(out)
+        print(err)
+        if 'inc-' not in inc_chunk:
             inc_chunk = 'inc-{}'.format(inc_chunk)
         inc_file = os.path.join(os.getcwd(), inc_chunk)
-        print(out, err)
-        print(final)
-        if final:
-            print("Saving final results to output folder***: "
-                  "{}".format(output_dir))
-            inc_out = os.path.join(output_dir, inc_chunk)
-            shutil.copy(inc_file, inc_out)
-            print(out, err)
-            inc_file = inc_out
 
     end_time = time()
 
-    if benchmark:
+    if benchmark and benchmark_dir:
         write_bench('inc_chunk', start_time, end_time, socket.gethostname(),
                     benchmark_dir, os.path.basename(chunk))
 
     return inc_file
+
+
+def save_results(input_img, output_dir, it=0, benchmark=True,
+                 benchmark_dir=None):
+    import shutil
+    from os import path as op
+    from time import time
+
+    def write_bench(name, start_time, end_time, node, benchmark_dir, filename):
+
+        benchmark_file = os.path.join(benchmark_dir,
+                                      "bench-{}.txt".format(str(uuid.uuid1())))
+
+        with open(benchmark_file, 'a+') as f:
+            f.write('{0} {1} {2} {3} {4}\n'.format(name, start_time, end_time,
+                                                   node, filename))
+
+    start = time()
+
+    in_fn = op.basename(input_img).replace('inc-', '')
+
+    outimg_name = "inc{}-{}".format(it, in_fn)
+    output_file = op.join(output_dir, outimg_name)
+
+    shutil.copy(input_img, output_file)
+
+    end = time()
+
+    if benchmark and benchmark_dir:
+        write_bench('save_results', start, end, socket.gethostname(),
+                    benchmark_dir, output_name)
+
+    return output_file
 
 
 def main():
@@ -143,52 +157,54 @@ def main():
     for chunk in bb_files:
         inc_1 = Node(Function(input_names=['chunk', 'delay',
                                            'benchmark',
-                                           'output_dir', 'benchmark_dir',
-                                           'final', 'it', 'cli'],
+                                           'benchmark_dir', 'cli'],
                               output_names=['inc_chunk'],
                               function=increment_chunk),
-                     name='inc_bb{}'.format(str(uuid.uuid1())))
+                     name='inc_bb{}'.format(count))
 
         inc_1.inputs.chunk = chunk
         inc_1.inputs.delay = args.delay
-        inc_1.inputs.output_dir = output_dir
         inc_1.inputs.benchmark_dir = benchmark_dir
         inc_1.inputs.benchmark = args.benchmark
         inc_1.inputs.cli = args.cli
 
-        if args.iterations == 1:
-            inc_1.inputs.final = True
-        else:
-            inc_1.inputs.final = False
-
-        inc_1.inputs.it = 1
         wf.add_nodes([inc_1])
+
+        inc_2 = None
 
         for i in range(0, args.iterations - 1):
             node_name = 'inc_bb{0}_{1}'.format(count, i+1)
             inc_2 = Node(Function(input_names=['chunk', 'delay',
                                                'benchmark',
-                                               'output_dir', 'benchmark_dir',
-                                               'final', 'it', 'cli'],
+                                               'benchmark_dir', 'cli'],
                                   output_names=['inc_chunk'],
-                         function=increment_chunk),
+                                  function=increment_chunk),
                          name=node_name)
 
             inc_2.inputs.delay = args.delay
-            inc_2.inputs.output_dir = output_dir
             inc_2.inputs.benchmark_dir = benchmark_dir
             inc_2.inputs.benchmark = args.benchmark
-            inc_2.inputs.it = i + 2
             inc_2.inputs.cli = args.cli
-
-            if i + 1 == args.iterations - 1:
-                inc_2.inputs.final = True
-            else:
-                inc_2.inputs.final = False
 
             wf.connect([(inc_1, inc_2, [('inc_chunk', 'chunk')])])
 
             inc_1 = inc_2
+
+        save_res = Node(Function(input_names=['input_img', 'output_dir', 'it',
+                                              'benchmark', 'benchmark_dir'],
+                                 output_names=['output_filename'],
+                                 function=save_results),
+                        name='save_res{}'.format(count))
+
+        save_res.inputs.output_dir = output_dir
+        save_res.inputs.it = args.iterations
+        save_res.inputs.benchmark = args.benchmark
+        save_res.inputs.benchmark_dir = benchmark_dir
+
+        if inc_2 is None:
+            wf.connect([(inc_1, save_res, [('inc_chunk', 'input_img')])])
+        else:
+            wf.connect([(inc_2, save_res, [('inc_chunk', 'input_img')])])
 
         count += 1
 
