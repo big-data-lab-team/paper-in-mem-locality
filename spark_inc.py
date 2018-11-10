@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from pyspark import SparkContext, SparkConf
 from io import BytesIO
 from time import sleep, time
@@ -34,7 +36,7 @@ def write_bench(name, start_time, end_time, node, output_dir,
 
     with open(benchmark_file, 'a+') as f:
         f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time, end_time,
-                                               node, filename, executor))
+                                                   node, filename, executor))
 
     return benchmark_file
 
@@ -247,7 +249,7 @@ def main():
         fname = 'benchmark-{}.txt'.format(app_uuid)
         benchmark_file = os.path.join(output_dir, fname)
         write_bench('driver_program', 0, end, socket.gethostname(),
-                    output_dir, 'allfiles', get_ident(), 
+                    output_dir, 'allfiles', get_ident(),
                     benchmark_file=benchmark_file)
 
         with open(benchmark_file, 'a+') as bench:

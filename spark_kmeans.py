@@ -1,6 +1,9 @@
+#!/usr/bin/env python
+
 from pyspark import SparkContext, SparkConf
 from io import BytesIO
-from os import path
+from os import path as op
+from os import makedirs
 import argparse
 import sys
 import nibabel as nib
@@ -56,7 +59,7 @@ def save_segmented(d, assignments, out):
     im_seg = nib.Nifti1Image(data, im.affine)
 
     # save segmented image
-    output_file = os.path.join(out, 'seg-' + os.path.basename(d[0]))
+    output_file = op.join(out, 'seg-' + op.basename(d[0]))
     nib.save(im_seg, output_file)
 
     return (output_file, "SAVED")
@@ -85,9 +88,16 @@ def main():
     #   49808.209711495881]
     # [0, 26214, 45874.5, 65535]
 
+    output_dir = op.abspath(args.output_dir)
+
+    try:
+        makedirs(output_dir)
+    except Exception as e:
+        pass
+
     # read binary data stored in folder and create an RDD from it
     # will return an RDD with format RDD[(filename, binary_data)]
-    imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir)).cache()
+    imRDD = sc.binaryFiles('file://' + op.abspath(args.bb_dir)).cache()
 
     voxelRDD = imRDD.flatMap(get_voxels).cache()
 
@@ -117,7 +127,7 @@ def main():
     assignments = assignments.zipWithIndex().map(lambda x: (x[1],
                                                             x[0][1])).collect()
     results = imRDD.map(lambda x: save_segmented(x, assignments,
-                                                 op.abspath(args.output_dir))
+                                                 output_dir)
                         ).collect()
 
     print("***FINAL CENTROIDS***:", centroids)
