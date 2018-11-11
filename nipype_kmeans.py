@@ -73,6 +73,46 @@ def update_centroids(centroid, assignments):
         return (centroid[0], sum_elements/num_elements)
 
 
+def classify_chunks(img, assignments):
+    import nibabel as nib
+    import pickle
+    from os import path as op
+
+    a_files = [t for l in assignments for t in l]
+
+    i = nib.load(img)
+    data = i.get_fdata()
+    shape = i.header.get_data_shape()
+
+    for z in range(0, shape[2]):
+        for y in range(0, shape[1]):
+            for x in range(0, shape[0]):
+                for t in a_files:
+                    with open(t[1], 'rb') as f:
+                        elements = set(pickle.load(f))
+
+                        if data[x][y][z] in elements:
+                            data[x][y][z] = t[0]
+                            break
+
+    i_out = nib.Nifti1Image(data, i.affine, i.header)
+    i_name = op.basename(img)
+    nib.save(i_out, i_name)
+
+    return op.abspath(i_name)
+
+
+def save_classified(img, output_dir):
+    import shutil
+    from os import path as op
+
+    out_name = 'classified_{}'.format(op.basename(img))
+
+    out_file = op.join(output_dir, out_name)
+
+    return shutil.copy(img, out_file)
+
+
 def main():
     parser = argparse.ArgumentParser(description='BigBrain K-means')
     parser.add_argument('bb_dir', type=str, help='The folder containing '
@@ -105,10 +145,11 @@ def main():
     while c_changed and idx < args.iters:
         wf = Workflow('km_bb{}'.format(idx))
 
+        gc_nname = 'gc_{}'.format(idx)
         gc = MapNode(Function(input_names=['img', 'centroids'],
                               output_names=['assignment_files'],
                               function=get_nearest_centroid),
-                     name='gc_{}'.format(idx),
+                     name=gc_nname,
                      iterfield=['img'])
 
         gc.inputs.img = bb_files
@@ -116,10 +157,11 @@ def main():
 
         wf.add_nodes([gc])
 
+        uc_nname = 'uc_{}'.format(idx)
         uc = MapNode(Function(input_names=['centroid', 'assignments'],
                               output_names=['updated_centroids'],
                               function=update_centroids),
-                     name='uc_{}'.format(idx),
+                     name=uc_nname,
                      iterfield=['centroid'])
 
         uc.inputs.centroid = centroids
@@ -132,9 +174,9 @@ def main():
         node_names = [i.name for i in wf_out.nodes()]
         result_dict = dict(zip(node_names, wf_out.nodes()))
 
-        new_centroids = (result_dict['uc_{}'.format(idx)].result
-                                                         .outputs
-                                                         .updated_centroids)
+        new_centroids = (result_dict[uc_nname].result
+                                              .outputs
+                                              .updated_centroids)
 
         old_centroids = set(centroids)
         diff = [x for x in new_centroids if x not in old_centroids]
@@ -148,6 +190,34 @@ def main():
             print("it", idx, c_vals)
         else:
             print("***FINAL CENTROIDS***:", c_vals)
+
+            res_wf = Workflow('km_classify')
+
+            c_idx = 0
+            for chunk in bb_files:
+                cc = Node(Function(input_names=['img', 'assignments'],
+                                   output_names=['out_file'],
+                                   function=classify_chunks),
+                          name='cc_{}'.format(c_idx))
+
+                cc.inputs.img = chunk
+                cc.inputs.assignments = (result_dict[gc_nname].result
+                                         .outputs
+                                         .assignment_files)
+                res_wf.add_nodes([cc])
+
+                sc = Node(Function(input_names=['img', 'output_dir'],
+                                   output_names=['out_file'],
+                                   function=save_classified),
+                          name='sc_{}'.format(c_idx))
+
+                sc.inputs.output_dir = output_dir
+
+                res_wf.connect([(cc, sc, [('out_file', 'img')])])
+
+                res_wf.run(plugin='MultiProc')
+
+                c_idx += 1
 
 
 if __name__ == '__main__':
