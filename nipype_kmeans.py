@@ -82,7 +82,7 @@ def classify_chunks(img, assignments):
 
     i = nib.load(img)
     data = i.get_fdata()
-    shape = i.header.get_data_shape()
+    shape = i.shape
 
     for z in range(0, shape[2]):
         for y in range(0, shape[1]):
