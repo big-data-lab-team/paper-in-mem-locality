@@ -1,9 +1,12 @@
 from nipype import Workflow, MapNode, Node, Function
 from numpy import iinfo
 from random import seed, sample
+from time import time
+from shutil import rmtree
 import argparse
 import os
 import glob
+
 
 
 def get_nearest_centroid(img, centroids):
@@ -117,18 +120,33 @@ def main():
     parser = argparse.ArgumentParser(description='BigBrain K-means')
     parser.add_argument('bb_dir', type=str, help='The folder containing '
                         'BigBrain NIfTI images (local fs only)')
+    parser.add_argument('iters', type=int, help='The number of iterations')
     parser.add_argument('output_dir', type=str, help='the folder to save '
                         'the final centroids to (local fs only)')
-    parser.add_argument('iters', type=int, help='The number of iterations')
+    parser.add_argument('--benchmark', action='store_true',
+                        help='benchmark pipeline')
 
     args = parser.parse_args()
 
+    start = time()
     output_dir = os.path.abspath(args.output_dir)
 
     try:
         os.makedirs(output_dir)
     except Exception as e:
         pass
+
+    benchmark_dir = None
+    app_uuid = str(uuid.uuid1())
+    
+    if args.benchmark:
+        benchmark_dir = os.path.abspath(os.path.join(args.output_dir,
+                                                        'benchmarks-{}'.format(
+                                                                    app_uuid)))
+        try:
+            os.makedirs(benchmark_dir)
+        except Exception as e:
+            pass
 
     # get all files in directory
     bb_files = glob.glob(os.path.join(os.path.abspath(args.bb_dir), '*'))
@@ -219,6 +237,28 @@ def main():
 
                 c_idx += 1
 
+        end = time()
+
+        if args.benchmark:
+            fname = 'benchmark-{}.txt'.format(app_uuid)
+            benchmark_file = os.path.abspath(os.path.join(args.output_dir,
+                                                          fname))
+            print(benchmark_file)
+
+            with open(benchmark_file, 'a+') as bench:
+                bench.write('{0} {1} {2} {3} '
+                            '{4} {5}\n'.format('driver_program',
+                                               start,
+                                               end,
+                                               socket.gethostname(),
+                                               'allfiles',
+                                               get_ident()))
+
+                for b in os.listdir(benchmark_dir):
+                    with open(os.path.join(benchmark_dir, b), 'r') as f:
+                        bench.write(f.read())
+                        
+            rmtree(benchmark_dir)
 
 if __name__ == '__main__':
     main()

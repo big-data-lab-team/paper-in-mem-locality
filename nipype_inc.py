@@ -8,6 +8,7 @@ import shutil
 import glob
 import uuid
 import socket
+import json
 try:
     from threading import get_ident
 except Exception as e:
@@ -134,7 +135,10 @@ def main():
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
                         help='benchmark pipeline')
-    parser.add_argument('--nprocs', type=int, help='Number of cores')
+    parser.add_argument('--plugin', type=str, choices=['Slurm', 'MultiProc'],
+                        default='MultiProc', help='Plugin to use')
+    parser.add_argument('--plugin_args', type=str,
+                        help='Plugin arguments file in dictionary format')
 
     args = parser.parse_args()
 
@@ -230,10 +234,10 @@ def main():
 
         count += 1
 
-    if args.nprocs is not None:
-        wf.run(plugin='MultiProc', plugin_args={'n_procs': args.nprocs})
+    if args.plugin_args is not None:
+        wf.run(plugin=args.plugin, plugin_args=json.load(args.plugin_args))
     else:
-        wf.run(plugin='MultiProc')
+        wf.run(plugin=args.plugin)
 
     wf.write_graph(graph2use='colored')
 
