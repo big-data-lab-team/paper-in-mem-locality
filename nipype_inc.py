@@ -135,7 +135,7 @@ def main():
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
                         help='benchmark pipeline')
-    parser.add_argument('--plugin', type=str, choices=['Slurm', 'MultiProc'],
+    parser.add_argument('--plugin', type=str, choices=['SLURM', 'MultiProc'],
                         default='MultiProc', help='Plugin to use')
     parser.add_argument('--plugin_args', type=str,
                         help='Plugin arguments file in dictionary format')
@@ -235,7 +235,9 @@ def main():
         count += 1
 
     if args.plugin_args is not None:
-        wf.run(plugin=args.plugin, plugin_args=json.load(args.plugin_args))
+        with open(args.plugin_args, 'r') as f:
+            pargs = json.load(f)
+            wf.run(plugin=args.plugin, plugin_args=pargs)
     else:
         wf.run(plugin=args.plugin)
 
