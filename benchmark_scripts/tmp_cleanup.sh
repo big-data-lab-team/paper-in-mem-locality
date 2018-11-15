@@ -14,4 +14,3 @@ srun rm -rf /dev/shm/inc_exp/work
 srun rm -rf /local/inc_exp/work
 srun rm -rf /mnt/lustrefs/spark/inc_exp/work
 
-touch /mnt/lustrefs/spark/inc_exp/COMPLETED

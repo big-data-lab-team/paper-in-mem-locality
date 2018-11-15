@@ -580,11 +580,12 @@ for cdn in conditions:
         print('ERROR: was not able to clean tmp files')
         sys.exit(p)
 
-    while not op.exists(done_file):
-        sleep(300)
+    p = subprocess.Popen(['squeue -u tristan.concordia | wc -l'],
+                         shell=True, stdout=subprocess.PIPE)
+    (out, _) = p.communicate()
 
-    try:
-        remove(done_file)
-    except Exception as e:
-        print(e)
-        sys.exit(1)
+    while int(out) > 1:
+        sleep(300)
+        p = subprocess.Popen(['squeue -u tristan.concordia | wc -l'],
+                         shell=True, stdout=subprocess.PIPE)
+        (out, _) = p.communicate()
