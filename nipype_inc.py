@@ -1,4 +1,4 @@
-#!usr/bin/env python
+#!/usr/bin/env python
 
 from nipype import Workflow, MapNode, Node, Function
 from time import time

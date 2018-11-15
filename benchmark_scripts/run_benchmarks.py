@@ -28,7 +28,7 @@ slurm_nipype = {
 
 spark_template = '/mnt/lustrefs/spark/spark_sbatch.sh'
 nipype_template = '/mnt/lustrefs/spark/nipype_sbatch.sh'
-cleanup_script = ('/mnt/lustrefs/SOEN691-project/'
+cleanup_script = ('/mnt/lustrefs/spark/SOEN691-project/'
                   'benchmark_scripts/tmp_cleanup.sh')
 data_dir = '/mnt/lustrefs/spark/data'
 
@@ -517,11 +517,17 @@ for cdn in conditions:
         slurm_conf["cpus-per-task"] = 4
         slurm_conf["ntasks-per-node"] = 9
 
-    out_dir = op.join(lustre, 'results', out_dir + cdn_ident)
-    cmd += [out_dir, str(cdn["iterations"]), "--benchmark"]
-
     if "delay" in cdn:
-        cmd += ["--delay", str(cdn["delay"])]
+        out_dir = op.join(lustre, 'results',
+                          out_dir + cdn_ident + "_{}delay".format(
+                                                         cdn["delay"]))
+
+        cmd += [out_dir, str(cdn["iterations"]), "--benchmark",
+                "--delay", str(cdn["delay"])]
+    else:
+        out_dir = op.join(lustre, 'results', out_dir + cdn_ident)
+        cmd += [out_dir, str(cdn["iterations"]), "--benchmark"]
+
 
     if cdn["filesystem"] != "mem":
         work_dir = op.join(filesystems[cdn["filesystem"]],
@@ -535,6 +541,7 @@ for cdn in conditions:
 
     if cdn["framework"] == "spark":
         cmd = " ".join(cmd)
+        cmd = "\"{}\"".format(cmd)
         s.run("bash " + spark_template, cmd_kwargs={"spscript": cmd},
               _cmd=sys.argv[1])
     else:
@@ -561,6 +568,7 @@ for cdn in conditions:
                 cmd[1] = ",".join(files)
                 ncmd = " ".join(cmd)
                 ncmd += "_{}".format(i)
+                ncmd = "\"{}\"".format(ncmd)
 
                 s.run("bash " + nipype_template, cmd_kwargs={"npscript": ncmd},
                       _cmd=sys.argv[1])
