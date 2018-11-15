@@ -538,6 +538,9 @@ for cdn in conditions:
     if cdn["framework"] == "spark":
         cmd = " ".join(cmd)
         cmd = "\"{}\"".format(cmd)
+
+        print("Submitting command: ", cmd)
+
         s.run("bash " + spark_template, cmd_kwargs={"spscript": cmd},
               _cmd=sys.argv[1])
     else:
@@ -566,6 +569,7 @@ for cdn in conditions:
                 ncmd += "_{}".format(i)
                 ncmd = "\"{}\"".format(ncmd)
 
+                print("Submitting command: ", ncmd)
                 s.run("bash " + nipype_template, cmd_kwargs={"npscript": ncmd},
                       _cmd=sys.argv[1])
 
