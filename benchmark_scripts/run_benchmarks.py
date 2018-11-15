@@ -12,8 +12,8 @@ slurm_spark = {
                "time": "35:00:00",
                "nodes": "16",
                "mem": "183G",
-               "cpus-per-task": "5",
-               "ntasks-per-node": "8"
+               "cpus-per-task": "40",
+               "ntasks-per-node": "1"
 	          }
 
 slurm_nipype = {
@@ -499,24 +499,19 @@ for cdn in conditions:
 
     if cdn["dataset"] == bb_125dir:
         cdn_ident += "125BB"
-        slurm_conf["cpus-per-task"] = 4
-        slurm_conf["ntasks-per-node"] = 9
+        slurm_conf["cpus-per-task"] = 9
     elif cdn["dataset"] == bb_30dir:
         cdn_ident += "30BB"
         slurm_conf["cpus-per-task"] = 20
-        slurm_conf["ntasks-per-node"] = 2
     elif cdn["dataset"] == bb_750dir:
         cdn_ident += "750BB"
-        slurm_conf["cpus-per-task"] = 1
-        slurm_conf["ntasks-per-node"] = 25
+        slurm_conf["cpus-per-task"] = 25
     elif cdn["dataset"] == mri_125dir:
         cdn_ident += "125MRI"
-        slurm_conf["cpus-per-task"] = 4
-        slurm_conf["ntasks-per-node"] = 9
+        slurm_conf["cpus-per-task"] = 9
     else:
         cdn_ident += "125HBB"
-        slurm_conf["cpus-per-task"] = 4
-        slurm_conf["ntasks-per-node"] = 9
+        slurm_conf["cpus-per-task"] = 9
 
     if "delay" in cdn:
         out_dir = op.join(lustre, 'results',
