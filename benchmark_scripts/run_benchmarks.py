@@ -26,10 +26,11 @@ slurm_nipype = {
                 "ntasks-per-node": "1"
 	           }
 
-spark_template = '/mnt/lustrefs/spark/spark_sbatch.sh'
-nipype_template = '/mnt/lustrefs/spark/nipype_sbatch.sh'
-cleanup_script = ('/mnt/lustrefs/spark/SOEN691-project/'
-                  'benchmark_scripts/tmp_cleanup.sh')
+bscripts_dir = '/mnt/lustrefs/spark/SOEN691-project/benchmark_scripts'
+
+spark_template = op.join(bscripts_dir, 'spark_sbatch.sh')
+nipype_template = op.join(bscripts_dir, 'nipype_sbatch.sh')
+cleanup_script = op.join(bscripts_dir, 'tmp_cleanup.sh')
 data_dir = '/mnt/lustrefs/spark/data'
 
 tmpfs = '/dev/shm/inc_exp'
