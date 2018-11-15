@@ -502,7 +502,7 @@ for cdn in conditions:
         slurm_conf["cpus-per-task"] = 9
     elif cdn["dataset"] == bb_30dir:
         cdn_ident += "30BB"
-        slurm_conf["cpus-per-task"] = 20
+        slurm_conf["cpus-per-task"] = 2
     elif cdn["dataset"] == bb_750dir:
         cdn_ident += "750BB"
         slurm_conf["cpus-per-task"] = 25
