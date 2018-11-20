@@ -68,49 +68,49 @@ conditions = [
               { 
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 100
               },
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
@@ -130,42 +130,42 @@ conditions = [
               { 
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
@@ -178,49 +178,49 @@ conditions = [
               {
                  "framework": "spark",
                  "filesystem": "local",
-                 "delay": 3600,
+                 "delay": 55,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
               { 
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
@@ -240,49 +240,49 @@ conditions = [
               { 
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 100
               },
               {
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
@@ -302,42 +302,42 @@ conditions = [
               { 
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
@@ -357,42 +357,42 @@ conditions = [
               { 
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
@@ -412,49 +412,49 @@ conditions = [
               { 
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 1
               },
               {
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": bb_125dir,
                   "iterations": 100
               },
               {
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 229,
                   "dataset": bb_30dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": hbb_125dir,
                   "iterations": 10
               },
               {
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 600,
+                  "delay": 55,
                   "dataset": mri_125dir,
                   "iterations": 10
               },
