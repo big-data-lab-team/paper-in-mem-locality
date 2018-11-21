@@ -559,7 +559,7 @@ for cdn in conditions:
                 if count_rem < pn_remain:
                     files = images[idx: idx+pn_images+1]
                     count_rem += 1
-                    idx += 1
+                    idx += pn_images + 1
                 else:
                     files = images[idx: idx+pn_images]
                     idx += pn_images
@@ -572,7 +572,6 @@ for cdn in conditions:
                 print("Submitting command: ", ncmd)
                 s.run("bash " + nipype_template, cmd_kwargs={"npscript": ncmd},
                       _cmd=sys.argv[1])
-
 
     p = subprocess.call(['sbatch', cleanup_script])
     

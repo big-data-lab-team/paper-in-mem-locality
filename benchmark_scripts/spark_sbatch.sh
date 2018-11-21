@@ -40,7 +40,7 @@ SPARK_NO_DAEMONIZE=1 srun -n ${NWORKERS} -N ${NNODES} --label --output=$SPARK_LO
 slaves_pid=$!
 
 echo 'Starting execution'
-srun -n 1 -N 1 $SPARK_HOME/bin/spark-submit --master=${MASTER_URL} --num-executors=${NEXECUTORS} --executor-memory=${MEM_PER_EXEC}M --driver-memory=10G --conf spark.locality.wait=600s $spscript
+srun -n 1 -N 1 $SPARK_HOME/bin/spark-submit --master=${MASTER_URL} --num-executors=${NEXECUTORS} --executor-memory=${MEM_PER_EXEC}M --driver-memory=${MEM_PER_EXEC}M --conf spark.locality.wait=600s  $spscript
 
 kill $slaves_pid
 $SPARK_HOME/sbin/stop-master.sh
