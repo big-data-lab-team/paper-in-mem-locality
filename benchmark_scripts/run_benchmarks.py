@@ -89,13 +89,6 @@ conditions = [
               {
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "mem",
                   "delay": 10,
                   "dataset": bb_750dir,
                   "iterations": 10
@@ -123,7 +116,7 @@ conditions = [
               {
                  "framework": "spark",
                  "filesystem": "mem",
-                 "delay": 3600,
+                 "delay": 900,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
@@ -233,7 +226,7 @@ conditions = [
               {
                  "framework": "spark",
                  "filesystem": "tmpfs",
-                 "delay": 3600,
+                 "delay": 900,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
@@ -295,7 +288,7 @@ conditions = [
               {
                  "framework": "spark",
                  "filesystem": "lustre",
-                 "delay": 3600,
+                 "delay": 900,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
@@ -350,7 +343,7 @@ conditions = [
               {
                  "framework": "nipype",
                  "filesystem": "local",
-                 "delay": 3600,
+                 "delay": 900,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
@@ -405,7 +398,7 @@ conditions = [
               {
                  "framework": "nipype",
                  "filesystem": "tmpfs",
-                 "delay": 3600,
+                 "delay": 900,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
@@ -467,7 +460,7 @@ conditions = [
               {
                  "framework": "nipype",
                  "filesystem": "lustre",
-                 "delay": 3600,
+                 "delay": 900,
                  "dataset": bb_125dir,
                  "iterations": 10
               },
