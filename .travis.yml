@@ -20,7 +20,7 @@ script:
     - export SPARK_HOME=`pwd`/spark-2.3.1-bin-hadoop2.7
     - export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
     - export PYTHONPATH=$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$PYTHONPATH
-    - sudo cp increment.py /bin
+    - sudo cp pipelines/increment.py /bin
     - pycodestyle spark_inc.py tests/test_inc.py
     - pytest -q tests/test_inc.py
 
