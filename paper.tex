@@ -123,7 +123,7 @@
 
 \subsection{Simulation} % is it included? 0.5 page
 
-\subsection{Models: Write Buffer} % perhaps other models if relevant. 0.5 page
+\subsection{Page Cache Model} % perhaps other models if relevant. 0.5 page
 
 % Perhaps refer to this: https://ieeexplore.ieee.org/abstract/document/5496998
 
@@ -131,6 +131,63 @@
 % http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
 
 % measured disk bandwidth with random I/O, very different from sequential
+
+The Linux kernel uses in-memory page caching to speed-up disk writes. 
+When a process calls the \texttt{write()} system call, data is copied 
+to a memory cache that is asynchronously written to disk by flusher 
+threads when memory shrinks, ``dirty" (unwritten) data grows, or a 
+process invokes the \texttt{sync()} system call~\cite{love2010linux}. 
+The flushing of page cache to disk is also called the writeback 
+process.
+
+Page caching has a dramatic effect on I/O, reducing the duration of 
+disk writes by several orders of magnitude. It is essentially a way to 
+emulate in-memory computing at the kernel level, without requiring a 
+dedicated engine. The size of the page cache, however, becomes a 
+limitation when processes write faster than the disk bandwidth. When 
+this happens, the page cache rapidly fills up and writes are limited by 
+the disk write bandwidth -- typically 500~MB/s for random writes to 
+contemporary SSDs  -- as if no page cache was involved.
+
+We introduce the following basic model to describe the filling and 
+flushing of the page cache by an application:
+$$
+d(t) = \left( \frac{D}{C} - \frac{\delta}{\gamma} \right)t + d_0,
+$$
+where:
+\begin{itemize}
+\item $d(t)$ is the amount of data in the page cache at time t
+\item $D$ is the total amount of data written by the application
+\item $C$ is the total CPU time of the application
+\item $\delta$ is the disk bandwidth
+\item $\gamma$ is the max number of concurrent processes
+\item $d_0$ is the amount of data in the page cache at time $t_0$
+\end{itemize}
+
+This model applies to parallel applications assuming that (1) 
+concurrent processes all write the same amount of data, (2) 
+concurrent processes all consume the same CPU time, (3) data is written 
+uniformly along task execution. Due these assumptions, all the 
+processes will write at the same rate, which explains why the model 
+does not depend on the total number of concurrent processes in the 
+application, but only on the max number of concurrent processes 
+executing on the same node ($\gamma$). We realize that these 
+assumptions would usually be violated in practice, but this simple 
+model already provides interesting insights on the performance of disk 
+writes, as shown later. Naturally, the model also ignores other 
+processes that might be writing to disk concurrently to the 
+application, which we assume negligible here. 
+
+In general, an application should ensure that $\dot d$ remains negative 
+or null, leading to the following inequality:
+\begin{equation}
+\frac{D}{C} \leq \frac{\delta}{\gamma} \label{eq:page-cache-inequality}
+\end{equation}
+This defines a data-compute ratio beyond which the page cache becomes 
+asymptotically useless, which we will use to define our benchmarks.
+
+% Cache eviction: LRU/n.
+
 
 \subsection{Experiments} % 1.5 pages
 
@@ -184,17 +241,21 @@
 
 \subsection{Engine-specific observations}
 
+% Do we see the effect of Java serialization?
+
 \section{Conclusion} % 1 page with refs
 
 % When is it useful to use a Big Data engine?
 
-% Future work: scheduling in a shared environment.
+% Future work:
+% - scheduling in a shared environment.
+% - workflow-aware cache eviction strategies instead of LRU/n
 
 \section{Acknowledgments}
 
 
 \bibliographystyle{IEEEtran} 
-\bibliography{IEEEfull,biblio}
+\bibliography{biblio}
 
 \end{document}
 
