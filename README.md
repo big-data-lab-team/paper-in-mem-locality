@@ -1,4 +1,4 @@
-# Paper Big Data strategies
+# Paper Big Data Strategies
 
 In this paper we quantify and discuss the performance brought by 
 in-memory computing, data locality and lazy evaluation on 
@@ -8,16 +8,13 @@ Spark)[https://spark.apache.org] and
 
 ## Experiments
 
-### Experiment 0: Incrementation in Nipype and Spark
+1. Incrementation in Nipype and Spark
 [![Build Status](https://travis-ci.org/ValHayot/SOEN691-project.svg?branch=experiment0)](https://travis-ci.org/ValHayot/SOEN691-project)
-
-### Experiment 1: Simple binarization in Nipype and Spark
-### Experiment 2: K-means workflow in Nipype and Spark
-### Experiment 3: Reimplementation of an existing (fMRIPrep)[https://fmriprep.readthedocs.io/en/latest/index.html] workflow in Apache Spark
+2. Simple binarization in Nipype and Spark
+3. K-means workflow in Nipype and Spark
+4. Reimplementation of an existing (fMRIPrep)[https://fmriprep.readthedocs.io/en/latest/index.html] workflow in Apache Spark
 - The fMRIPrep workflow selected is anatomical preprocessing without reconall (command-line call to be added here)
-- Spark implementation can be found under `sparkprep.py`
-
-Project report: https://docs.google.com/document/d/1gVQ5X9mEMPXmoTBowtW_Bbj371v056FeQJ407lKZCOo/edit?usp=sharing
+- Spark implementation can be found under `pipelines/sparkprep.py`
 
 ## Paper 
 

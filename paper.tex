@@ -44,7 +44,7 @@
 
 % Our question: is it relevant to use Big Data engines for neuroinformatics? 
 % Implications: migrate existing pipelines, adopt a new framework (costly)
-% Some papers said yes, for instance Ariel's and the Spark provenance one (https://github.com/UFFeScience/SAMbA).
+% Some papers said yes, for instance Ariel's, Thunder and the Spark provenance one (https://github.com/UFFeScience/SAMbA).
 % Perhaps this too: https://www.sciencedirect.com/science/article/pii/S0925231218311470 Spark is being used to implement neuroinformatics pipelines, but is it
 % the right tool?
 % But a quantitative evaluation is lacking.
@@ -64,6 +64,8 @@
 % http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
 
 
+% define pipeline and workflows 
+
 % Here we focus on performance but we are aware of other desirable properties of workflow engines, including provenacne.
 
 % Outline
@@ -78,11 +80,14 @@
 \subsubsection{Apache Spark}
 
 %% Main concepts
+% pipeline description
 % detailed description relevant to the experiment
 % how shuffle works
 % how data locality is implemented
 % spills to disk when dataset (and derived data) is too large for memory
 % Lazy evaluation
+% persistence (refer to Thunder)
+% multiple schedulers: we focus on Spark
 % overlay cluster: not considered here as this would be scheduling
 
 %% Technical details
@@ -94,9 +99,11 @@
 
 \subsubsection{Nipype}
 
+% pipeline description: map nodes and their limitations
 % general description relevant to the experiment
 % two plugins
 % provenance
+% file system caching
 % memory management (bad?)
 
 \subsubsection{Execution modes} % perhaps find a better title, it's not informative
