@@ -1,0 +1,215 @@
+\documentclass{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage[bookmarks=false]{hyperref}
+
+\newcommand{\todo}[1]{\marginpar{\parbox{18mm}{\flushleft\tiny\color{red}\textbf{TODO}:
+      #1}}}
+
+\begin{document}
+
+\title{Performance Evaluation of Big Data Management Strategies\\ for Neuroinformatics}
+
+\author{
+  \IEEEauthorblockN{
+    Val\'erie Hayot-Sasson and 
+    Tristan Glatard
+  }\\
+  \IEEEauthorblockA{
+    Department of Computer Science and Software Engineering, Concordia University, Montreal, Qu\'ebec, Canada
+  }
+}
+
+\maketitle
+
+%
+% Abstract
+%
+\begin{abstract}
+  
+\end{abstract}
+
+%
+% Section
+%
+\section{Introduction} % 1 page with abstract
+
+% Big Data Engines have been developed mostly for text applications, 
+%  in particular Web. Mention Spark and Dask
+
+% Scientific applications, including neuroinformatics are different: CLI, binary data, shared HPC clusters (although ref to cloud).
+% In neuroinformatics, nipype, psom, etc
+% This follows the current trend to big data science, data sets *and derived data* are larger (give examples).
+
+% Our question: is it relevant to use Big Data engines for neuroinformatics? 
+% Implications: migrate existing pipelines, adopt a new framework (costly)
+% Some papers said yes, for instance Ariel's and the Spark provenance one (https://github.com/UFFeScience/SAMbA).
+% Perhaps this too: https://www.sciencedirect.com/science/article/pii/S0925231218311470 Spark is being used to implement neuroinformatics pipelines, but is it
+% the right tool?
+% But a quantitative evaluation is lacking.
+
+% More precisely, we intend to quantify the effect of in-memory computing, data locality, lazy evaluation
+% on various use cases. We intentionally leave scheduling out here.
+
+% The use of a Big Data engine is not obvious when tmpfs and asynchronous writes
+% are available and could be used to emulate in-memory computing. Our goal is to quantify when and how Big Data engines will be useful.
+% Say that we don't use HDFS because we focus on clusters and HDFS on multi-tenant clusters is difficult (refer to hadoop on demand).
+
+% Talk about pilot jobs and say we don't consider them here.
+
+% "```Disk and network I/O, of course, play a part in Spark performance 
+% as well, but neither Spark nor YARN currently do anything to actively 
+% manage them.```"
+% http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
+
+
+% Here we focus on performance but we are aware of other desirable properties of workflow engines, including provenacne.
+
+% Outline
+
+% Talk about containers somewhere.
+
+\section{Materials and Methods} % 4 pages
+
+
+\subsection{Engines} % 1.5 pages
+
+\subsubsection{Apache Spark}
+
+%% Main concepts
+% detailed description relevant to the experiment
+% how shuffle works
+% how data locality is implemented
+% spills to disk when dataset (and derived data) is too large for memory
+% Lazy evaluation
+% overlay cluster: not considered here as this would be scheduling
+
+%% Technical details
+% data serialization to Java (we use Python as most neuroinformatics do)
+% limitation in size of RDD element, due to java implementation of binary data
+% memory management: don't give too much memory to executors or GC
+%  many places recommend limiting to 5 cores/executor, no one explains why
+% more on tuning?
+
+\subsubsection{Nipype}
+
+% general description relevant to the experiment
+% two plugins
+% provenance
+% memory management (bad?)
+
+\subsubsection{Execution modes} % perhaps find a better title, it's not informative
+
+% in-memory (Spark only)
+
+% tmpfs: two extra in-memory copies. memfs could address that but we don't have it yet.
+% Spark: when just passing filenames. turns out i need to set `preservePartitioning` to True
+% local disk: write buffer issue
+
+% shared fs: Lustre
+
+% Make a table to explain where data locality and in-memory computing are
+% available. 
+
+% What happens when dataset and derived data is too large for disk?
+
+\subsection{Simulation} % is it included? 0.5 page
+
+\subsection{Models: Write Buffer} % perhaps other models if relevant. 0.5 page
+
+% Perhaps refer to this: https://ieeexplore.ieee.org/abstract/document/5496998
+
+% 15 cores per executor can lead to bad I/O throughput
+% http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
+
+% measured disk bandwidth with random I/O, very different from sequential
+
+\subsection{Experiments} % 1.5 pages
+
+\subsubsection{Infrastructure} % 1/4 a page (half a col)
+
+% Dedicated Compute nodes with SLURM
+% Lustre server
+
+\subsubsection{Datasets} % 1/4 of a page (half a col)
+
+% BigBrain
+% Some BIDS dataset for fmriprep
+
+\subsubsection{Applications} % 1 page
+
+% Incrementation (avoid cache effects in binarization)
+
+% average (1 shuffle)
+% Nipype: can't use SLURM plugin so had to actively poll.
+
+% kmeans (many shuffles)
+
+% Example BIDS app
+
+% fmriprep?
+
+% Explain how we tweaked scheduling in Nipype to make it similar to Spark, 
+% otherwise we're only measuring scheduling differences. Needs a discussion on scheduling somewhere.
+
+
+\section{Results} % 2 pages
+
+% We checked that scheduling was similar in both cases (show a two Gantt charts to illustrate)
+
+% interactive gantt charts?
+
+\section{Discussion} % 2 pages
+
+\subsection{General concepts}
+
+% Shared fs vs local disk vs in-memory: what do we gain?
+
+% Can we emulate in-memory computing using write buffers or tmpfs?
+
+% Scheduling: load balance as much as you can.
+% (which isn't what nipype multiproc does)
+
+% tmpfs and local disks fill up: need cleanup.
+
+% fault-tolerance: do we have anything to discuss here?
+
+\subsection{Engine-specific observations}
+
+\section{Conclusion} % 1 page with refs
+
+% When is it useful to use a Big Data engine?
+
+% Future work: scheduling in a shared environment.
+
+\section{Acknowledgments}
+
+
+\bibliographystyle{IEEEtran} 
+\bibliography{IEEEfull,biblio}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
