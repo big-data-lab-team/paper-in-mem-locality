@@ -21,7 +21,7 @@ script:
     - export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
     - export PYTHONPATH=$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$PYTHONPATH
     - sudo cp pipelines/increment.py /bin
-    - pycodestyle spark_inc.py tests/test_inc.py
+    - pycodestyle pipelines/spark_inc.py tests/test_inc.py
     - pytest -q tests/test_inc.py
 
 after_success:

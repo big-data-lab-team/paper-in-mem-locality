@@ -8,7 +8,8 @@ from os import path as op
 
 def test_increment_spark():
 
-    p = subprocess.Popen(['python', 'pipelines/spark_inc.py', 'sample_data', 'inc_out',
+    p = subprocess.Popen(['python', 'pipelines/spark_inc.py',
+                          'sample_data', 'inc_out',
                           '1'])
     p.communicate()
 
@@ -20,7 +21,8 @@ def test_increment_spark():
 
     assert h_prog_1 == h_exp_1
 
-    p = subprocess.Popen(['python', 'pipelines/spark_inc.py', 'sample_data', 'inc_out',
+    p = subprocess.Popen(['python', 'pipelines/spark_inc.py',
+                          'sample_data', 'inc_out',
                           '10'])
     p.communicate()
 
@@ -38,7 +40,8 @@ def test_increment_spark_cli():
     shutil.rmtree('inc_out', ignore_errors=True)
     shutil.rmtree('inc_work', ignore_errors=True)
 
-    p = subprocess.Popen(['python', 'pipelines/spark_inc.py', 'sample_data', 'inc_out',
+    p = subprocess.Popen(['python', 'pipelines/spark_inc.py',
+                          'sample_data', 'inc_out',
                           '1', '--cli', '--work_dir', 'inc_work'])
     p.communicate()
 
@@ -50,7 +53,8 @@ def test_increment_spark_cli():
 
     assert h_prog_1 == h_exp_1
 
-    p = subprocess.Popen(['python', 'pipelines/spark_inc.py', 'sample_data', 'inc_out',
+    p = subprocess.Popen(['python', 'pipelines/spark_inc.py',
+                          'sample_data', 'inc_out',
                           '10', '--cli', '--work_dir', 'inc_work'])
     p.communicate()
 
@@ -129,7 +133,8 @@ def test_increment_nipype_cli():
 def test_benchmark_spark():
 
     shutil.rmtree('inc_out', ignore_errors=True)
-    p = subprocess.Popen(['python', 'pipelines/spark_inc.py', 'sample_data', 'inc_out',
+    p = subprocess.Popen(['python', 'pipelines/spark_inc.py',
+                          'sample_data', 'inc_out',
                           '1', '--benchmark'], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE)
     (out, err) = p.communicate()
