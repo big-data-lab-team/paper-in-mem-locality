@@ -1,0 +1,338 @@
+\documentclass{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage[bookmarks=false]{hyperref}
+
+\newcommand{\todo}[1]{\marginpar{\parbox{18mm}{\flushleft\tiny\color{red}\textbf{TODO}:
+      #1}}}
+
+\begin{document}
+
+\title{Performance Evaluation of Big Data Management Strategies for Neuroinformatics}
+
+\author{
+  \IEEEauthorblockN{
+    Val\'erie Hayot-Sasson and 
+    Tristan Glatard
+  }\\
+  \IEEEauthorblockA{
+    Department of Computer Science and Software Engineering, Concordia University, Montreal, Qu\'ebec, Canada
+  }
+}
+
+\maketitle
+
+%
+% Abstract
+%
+\begin{abstract}
+  
+\end{abstract}
+
+%
+% Section
+%
+\section{Introduction} % 1 page with abstract
+
+% Big Data Engines have been developed mostly for text applications, 
+%  in particular Web. Mention Spark and Dask
+Big Data processing engines have been leveraging data locality, 
+in-memory computing and lazy evaluation to reduce the impact of data 
+manipulation on the performance of applications. From early Hadoop 
+implementations~\cite{hadoop} to Apache Spark~\cite{spark} and 
+Dask~\cite{dask}, these frameworks have gained popularity and are now 
+becoming mainstream in data analytics.
+
+In scientific data analysis, however, the adoption of Big Data engines 
+
+% Scientific applications, including neuroinformatics are different: CLI, binary data, shared HPC clusters (although ref to cloud).
+% In neuroinformatics, nipype, psom, etc
+% This follows the current trend to big data science, data sets *and derived data* are larger (give examples).
+
+% Our question: is it relevant to use Big Data engines for neuroinformatics? 
+% Implications: migrate existing pipelines, adopt a new framework (costly)
+% Some papers said yes, for instance Ariel's, Thunder and the Spark provenance one (https://github.com/UFFeScience/SAMbA).
+% Perhaps this too: https://www.sciencedirect.com/science/article/pii/S0925231218311470 Spark is being used to implement neuroinformatics pipelines, but is it
+% the right tool?
+% But a quantitative evaluation is lacking.
+
+% More precisely, we intend to quantify the effect of in-memory computing, data locality, lazy evaluation
+% on various use cases. We intentionally leave scheduling out here.
+
+% The use of a Big Data engine is not obvious when tmpfs and asynchronous writes
+% are available and could be used to emulate in-memory computing. Our goal is to quantify when and how Big Data engines will be useful.
+% Say that we don't use HDFS because we focus on clusters and HDFS on multi-tenant clusters is difficult (refer to hadoop on demand).
+
+% Talk about pilot jobs and say we don't consider them here.
+
+% "```Disk and network I/O, of course, play a part in Spark performance 
+% as well, but neither Spark nor YARN currently do anything to actively 
+% manage them.```"
+% http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
+
+
+% define pipeline and workflows 
+
+% Here we focus on performance but we are aware of other desirable properties of workflow engines, including provenacne.
+
+% Outline
+
+% Talk about containers somewhere.
+
+\section{Materials and Methods} % 4 pages
+
+
+\subsection{Engines} % 1.5 pages
+
+\subsubsection{Apache Spark}
+
+%% Main concepts
+% pipeline description
+% detailed description relevant to the experiment
+% how shuffle works
+% how data locality is implemented
+% spills to disk when dataset (and derived data) is too large for memory
+% Lazy evaluation
+% persistence (refer to Thunder)
+% multiple schedulers: we focus on Spark Standalone
+% overlay cluster: not considered here as this would be scheduling
+
+%% Technical details
+% data serialization to Java (we use Python as most neuroinformatics do)
+% limitation in size of RDD element, due to java implementation of binary data
+% memory management: don't give too much memory to executors or GC
+%  many places recommend limiting to 5 cores/executor, no one explains why
+% more on tuning?
+
+\subsubsection{Nipype}
+
+% pipeline description: map nodes and their limitations
+% general description relevant to the experiment
+% two plugins
+% provenance
+% file system caching
+% memory management (bad?)
+
+\subsection{Performance Models}
+
+\subsubsection{In-Memory File System}
+
+\subsubsection{Local Disk (Page Caching)} % 0.5 page
+
+% Perhaps refer to this: https://ieeexplore.ieee.org/abstract/document/5496998
+
+% 15 cores per executor can lead to bad I/O throughput
+% http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
+
+% measured disk bandwidth with random I/O, very different from sequential
+
+The Linux kernel uses in-memory page caching to speed-up disk writes. 
+When a process calls the \texttt{write()} system call, data is copied 
+to a memory cache that is asynchronously written to disk by flusher 
+threads when memory shrinks, ``dirty" (unwritten) data grows, or a 
+process invokes the \texttt{sync()} system call~\cite{love2010linux}. 
+The flushing of page cache to disk is also called the writeback 
+process.
+
+Page caching has a dramatic effect on I/O, reducing the duration of 
+disk writes by several orders of magnitude. It is essentially a way to 
+emulate in-memory computing at the kernel level, without requiring a 
+dedicated engine. The size of the page cache, however, becomes a 
+limitation when processes write faster than the disk bandwidth. When 
+this happens, the page cache rapidly fills up and writes are limited by 
+the disk write bandwidth -- typically 500~MB/s for random writes to 
+contemporary SSDs  -- as if no page cache was involved.
+
+We introduce the following basic model to describe the filling and 
+flushing of the page cache by an application:
+$$
+d(t) = \left( \frac{D}{C} - \frac{\delta}{\gamma} \right)t + d_0,
+$$
+where:
+\begin{itemize}
+\item $d(t)$ is the amount of data in the page cache at time t
+\item $D$ is the total amount of data written by the application
+\item $C$ is the total CPU time of the application
+\item $\delta$ is the disk bandwidth
+\item $\gamma$ is the max number of concurrent processes
+\item $d_0$ is the amount of data in the page cache at time $t_0$
+\end{itemize}
+
+This model applies to parallel applications assuming that (1) 
+concurrent processes all write the same amount of data, (2) 
+concurrent processes all consume the same CPU time, (3) data is written 
+uniformly along task execution. Due these assumptions, all the 
+processes will write at the same rate, which explains why the model 
+does not depend on the total number of concurrent processes in the 
+application, but only on the max number of concurrent processes 
+executing on the same node ($\gamma$). We realize that these 
+assumptions would usually be violated in practice, but this simple 
+model already provides interesting insights on the performance of disk 
+writes, as shown later. Naturally, the model also ignores other 
+processes that might be writing to disk concurrently to the 
+application, which we assume negligible here. 
+
+In general, an application should ensure that $\dot d$ remains negative 
+or null, leading to the following inequality:
+\begin{equation}
+\frac{D}{C} \leq \frac{\delta}{\gamma} \label{eq:page-cache-inequality}
+\end{equation}
+This defines a data-compute ratio beyond which the page cache becomes 
+asymptotically useless, which we will use to define our benchmarks.
+
+% Cache eviction: LRU/n.
+
+\subsubsection{Shared File System}
+
+% is there a page cahe when writing to a socket? there must be!
+% anyway the model is in the form of Eq 1, but now delta is the network bandwidth
+% and gamma is the total number of concurrent processes.
+% also, is lustre going to slow down network writes?
+
+
+% Make a table to explain where data locality and in-memory computing are
+% available.  As a summary of the models.
+
+% What happens when dataset and derived data is too large for disk?
+
+\subsection{Simulation} % is it included? 0.5 page
+
+% Even if we end up not using simulation, here we should explain
+% why the model in simgrid is limited. Refer to Fred's paper at CCGrid 2017.
+% The following sub-sections become a set of models that we could implement
+% in simulation to make it more realistic.
+
+% Talk about ~\cite{lebre2015adding}. Most simulation toolkits have focused on task 
+%  scheduling. And https://dl.acm.org/citation.cfm?id=3041715
+
+% And Wrench.
+
+
+\subsection{Experiments} % 1.5 pages
+
+\subsubsection{Infrastructure} % 1/4 a page (half a col)
+
+% Dedicated Compute nodes with SLURM
+% Lustre server
+
+\subsubsection{Datasets} % 1/4 of a page (half a col)
+
+% BigBrain
+% Some BIDS dataset for fmriprep
+
+\subsubsection{Applications} % 1 page
+
+% Incrementation (avoid cache effects in binarization)
+
+% average (1 shuffle)
+% Nipype: can't use SLURM plugin so had to actively poll.
+
+% kmeans (many shuffles)
+
+% Example BIDS app
+
+% fmriprep?
+
+% Explain how we tweaked scheduling in Nipype to make it similar to Spark, 
+% otherwise we're only measuring scheduling differences. Needs a discussion on scheduling somewhere.
+
+\subsubsection{Execution modes} % perhaps find a better title, it's not informative
+
+% separate this in (1) the concepts, put in the model sections below, 
+% (2) the implementation 'details', put in the experiments
+
+% in-memory (Spark only)
+
+% tmpfs: two extra in-memory copies. memfs could address that but we don't have it yet.
+% Spark: when just passing filenames. turns out i need to set `preservePartitioning` to True
+% local disk: write buffer issue
+
+% shared fs: Lustre
+
+
+\section{Results} % 2 pages
+
+% We checked that scheduling was similar in both cases (show a two Gantt charts to illustrate)
+
+\subsection{Model Evaluations}
+
+\subsection{CPU Time}
+% Comment on the general trend
+
+\subsection{Image Block size}
+% Comment on the general trend
+
+\subsection{Data Size}
+% Comment on the general trend
+
+\subsection{Iterations}
+% Comment on the general trend
+
+% Interactive gantt charts?
+
+\section{Discussion} % 2 pages
+
+\subsection{Effect of In-Memory Computing}
+% Shared fs vs local disk vs in-memory: what do we gain?
+
+\subsection{Effect of Data Locality}
+
+% Effect of Lazy Evaluation?
+
+\subsection{Can \texttt{tmpfs} and Page Caches Emulate In-Memory Computing?}
+% tmpfs and local disks fill up: need cleanup.
+% Can we emulate in-memory computing using write buffers or tmpfs?
+
+
+\subsection{Scheduling Remarks}
+% Scheduling: load balance as much as you can.
+% (which isn't what nipype multiproc does)
+
+\subsection{Other Comments}
+
+% fault-tolerance: do we have anything to discuss here?
+
+\subsection{Engine-Specific Comparisons}
+
+% Spark vs Nipype
+% Do we see the effect of Java serialization?
+
+\section{Conclusion} % 1 page with refs
+
+% When is it useful to use a Big Data engine?
+
+% Future work:
+% - scheduling in a shared environment.
+% - workflow-aware cache eviction strategies instead of LRU/n
+
+\section{Acknowledgments}
+
+
+\bibliographystyle{IEEEtran} 
+\bibliography{biblio}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
