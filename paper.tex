@@ -9,7 +9,7 @@
 
 \begin{document}
 
-\title{Performance Evaluation of Big Data Management Strategies\\ for Neuroinformatics}
+\title{Performance Evaluation of Big Data Management Strategies for Neuroinformatics}
 
 \author{
   \IEEEauthorblockN{
@@ -37,6 +37,14 @@
 
 % Big Data Engines have been developed mostly for text applications, 
 %  in particular Web. Mention Spark and Dask
+Big Data processing engines have been leveraging data locality, 
+in-memory computing and lazy evaluation to reduce the impact of data 
+manipulation on the performance of applications. From early Hadoop 
+implementations~\cite{hadoop} to Apache Spark~\cite{spark} and 
+Dask~\cite{dask}, these frameworks have gained popularity and are now 
+becoming mainstream in data analytics.
+
+In scientific data analysis, however, the adoption of Big Data engines 
 
 % Scientific applications, including neuroinformatics are different: CLI, binary data, shared HPC clusters (although ref to cloud).
 % In neuroinformatics, nipype, psom, etc
@@ -106,24 +114,11 @@
 % file system caching
 % memory management (bad?)
 
-\subsubsection{Execution modes} % perhaps find a better title, it's not informative
+\subsection{Performance Models}
 
-% in-memory (Spark only)
+\subsubsection{In-Memory File System}
 
-% tmpfs: two extra in-memory copies. memfs could address that but we don't have it yet.
-% Spark: when just passing filenames. turns out i need to set `preservePartitioning` to True
-% local disk: write buffer issue
-
-% shared fs: Lustre
-
-% Make a table to explain where data locality and in-memory computing are
-% available. 
-
-% What happens when dataset and derived data is too large for disk?
-
-\subsection{Simulation} % is it included? 0.5 page
-
-\subsection{Page Cache Model} % perhaps other models if relevant. 0.5 page
+\subsubsection{Local Disk (Page Caching)} % 0.5 page
 
 % Perhaps refer to this: https://ieeexplore.ieee.org/abstract/document/5496998
 
@@ -188,6 +183,31 @@ asymptotically useless, which we will use to define our benchmarks.
 
 % Cache eviction: LRU/n.
 
+\subsubsection{Shared File System}
+
+% is there a page cahe when writing to a socket? there must be!
+% anyway the model is in the form of Eq 1, but now delta is the network bandwidth
+% and gamma is the total number of concurrent processes.
+% also, is lustre going to slow down network writes?
+
+
+% Make a table to explain where data locality and in-memory computing are
+% available.  As a summary of the models.
+
+% What happens when dataset and derived data is too large for disk?
+
+\subsection{Simulation} % is it included? 0.5 page
+
+% Even if we end up not using simulation, here we should explain
+% why the model in simgrid is limited. Refer to Fred's paper at CCGrid 2017.
+% The following sub-sections become a set of models that we could implement
+% in simulation to make it more realistic.
+
+% Talk about ~\cite{lebre2015adding}. Most simulation toolkits have focused on task 
+%  scheduling. And https://dl.acm.org/citation.cfm?id=3041715
+
+% And Wrench.
+
 
 \subsection{Experiments} % 1.5 pages
 
@@ -217,30 +237,65 @@ asymptotically useless, which we will use to define our benchmarks.
 % Explain how we tweaked scheduling in Nipype to make it similar to Spark, 
 % otherwise we're only measuring scheduling differences. Needs a discussion on scheduling somewhere.
 
+\subsubsection{Execution modes} % perhaps find a better title, it's not informative
+
+% separate this in (1) the concepts, put in the model sections below, 
+% (2) the implementation 'details', put in the experiments
+
+% in-memory (Spark only)
+
+% tmpfs: two extra in-memory copies. memfs could address that but we don't have it yet.
+% Spark: when just passing filenames. turns out i need to set `preservePartitioning` to True
+% local disk: write buffer issue
+
+% shared fs: Lustre
+
 
 \section{Results} % 2 pages
 
 % We checked that scheduling was similar in both cases (show a two Gantt charts to illustrate)
 
-% interactive gantt charts?
+\subsection{Model Evaluations}
+
+\subsection{CPU Time}
+% Comment on the general trend
+
+\subsection{Image Block size}
+% Comment on the general trend
+
+\subsection{Data Size}
+% Comment on the general trend
+
+\subsection{Iterations}
+% Comment on the general trend
+
+% Interactive gantt charts?
 
 \section{Discussion} % 2 pages
 
-\subsection{General concepts}
-
+\subsection{Effect of In-Memory Computing}
 % Shared fs vs local disk vs in-memory: what do we gain?
 
+\subsection{Effect of Data Locality}
+
+% Effect of Lazy Evaluation?
+
+\subsection{Can \texttt{tmpfs} and Page Caches Emulate In-Memory Computing?}
+% tmpfs and local disks fill up: need cleanup.
 % Can we emulate in-memory computing using write buffers or tmpfs?
 
+
+\subsection{Scheduling Remarks}
 % Scheduling: load balance as much as you can.
 % (which isn't what nipype multiproc does)
 
-% tmpfs and local disks fill up: need cleanup.
+\subsection{Other Comments}
 
 % fault-tolerance: do we have anything to discuss here?
 
-\subsection{Engine-specific observations}
+\subsection{Engine-Specific Comparisons}
 
+% Spark vs Nipype
 % Do we see the effect of Java serialization?
 
 \section{Conclusion} % 1 page with refs
