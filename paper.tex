@@ -2,10 +2,14 @@
 
 \usepackage{graphicx}
 \usepackage{color}
+\usepackage{colortbl} % for \rowcolor
+
 \usepackage[bookmarks=false]{hyperref}
 
 \newcommand{\todo}[1]{\marginpar{\parbox{18mm}{\flushleft\tiny\color{red}\textbf{TODO}:
       #1}}}
+\definecolor{headcolor}{gray}{0.9}
+
 
 \begin{document}
 
@@ -33,9 +37,12 @@
 
 Big Data processing engines leverage data locality, 
 in-memory computing, and lazy evaluation to reduce the impact of data 
-manipulation on the performance of applications. From early MapReduce 
-implementations~\cite{dean2008mapreduce} to Apache Spark~\cite{zaharia2016apache} and now 
-Dask~\cite{rocklin2015dask}, these frameworks have become 
+manipulation on the performance of applications. \todo{We need to 
+define data locality, in-memory computing and lazy evaluation somewhere 
+in the intro.} From early MapReduce 
+implementations~\cite{dean2008mapreduce} to Apache 
+Spark~\cite{zaharia2016apache} and now Dask~\cite{rocklin2015dask}, 
+these frameworks have become 
 mainstream tools for data analytics. Meanwhile, several scientific 
 domains including bioinformatics, physics or astronomy, have entered 
 the Big Data era due to increasing data volumes and variety. 
@@ -55,17 +62,18 @@ involve binary data such as images and signals, processed by
 command-line tools using a mix of programming languages (C, Fortran, 
 Python, shell scripts) and deployed on large, shared clusters where 
 data is fetched from data nodes to compute nodes using shared file 
-systems such as Lustre~\cite{schwan2003lustre}. Such differences in applications 
-and infrastructures have important consequences. To mention only one, 
-in-memory computing requires instrumentation to be applied to 
-command-line tools.
+systems such as Lustre~\cite{schwan2003lustre}. Such differences in 
+applications and infrastructures have important consequences. To 
+mention only one, in-memory computing requires instrumentation to be 
+applied to command-line tools. \todo{Also mention that performance is 
+only one of the concerns of scientific processing engines, which might
+explain why Big Data engines are overlooked.}
 
 Technological advances of the past decade, in particular page caching 
 in the Linux kernel~\cite{love2010linux}, in-memory file systems 
 (\texttt{tmpfs}) and memory-mapped files\todo{check that} might also 
 explain the lack of adoption of Big Data engines for scientific 
 applications. 
-
 In-memory computing would then be a feature provided by 
 the operating system rather than by the engine itself. The frontier 
 between these two components is blurred and needs to be clarified.
@@ -108,7 +116,7 @@ engines.
 
 Our study focuses on performance. We intentionally do not intend to 
 compare Big Data and scientific data processing engines on the grounds 
-of workflow language expressivity, provenance capture and 
+of workflow language expressivity, fault-tolerance, provenance capture and 
 representation, portability or reproducibility, which are otherwise 
 critical concerns. Besides, our study of performance focuses on the 
 impact of data writes and transfers. It purposely leaves out task 
@@ -125,6 +133,7 @@ results which we discuss in Section~\ref{sec:discussion}.
 Section~\ref{sec:conclusion} concludes on the answer to our two research questions.
 
 
+\newpage % Remove this when abstract is written
 
 \section{Materials and Methods} % 4 pages
 \label{sec:methods}
@@ -159,35 +168,92 @@ Section~\ref{sec:conclusion} concludes on the answer to our two research questio
 % provenance
 % file system caching
 % memory management (bad?)
+% Nipype only has data locality becausae we use multiproc. Data locality is emulated by manual decisions on scheduling.
 
-\subsection{Performance Models}
+\subsection{Data Storage Locations}
 
-\subsubsection{In-Memory File System}
+Data storage location is critical to the performance of Big Data 
+applications on HPC clusters. Data may reside in the engine memory, on 
+a file system whose content reside in virtual memory (for instance 
+\texttt{tmpfs}), on disks local to the processing node, or on a shared 
+file system. Table~\ref{table:features} summarizes the Big Data 
+strategies that can be used depending on the data location. The 
+remainder of this Section explains this Table and provides related 
+performance models.
+\begin{table}
+\centering
+\begin{tabular}{c|ccc}
+   \rowcolor{headcolor}
+    Data Location                 & In-Memory     & Data Locality & Lazy \\
+    \rowcolor{headcolor}
+                                  & Computing     &               & Evaluation      \\
+                                  \hline          
+In-memory                         &   Y           & Y             & Spark               \\
+\texttt{tmpfs}                    &   Y           & Y             & Spark           \\
+Local Disk                        & Page Caching  & Y             & Spark           \\
+Shared File System                & Page Caching  & N            & Spark          
+% data locality is somehow present in shared fs due to page caching again.
+\end{tabular}
+\caption{Big Data strategies on a shared HPC cluster.}
+\label{table:features}
+\end{table}
+
+\subsubsection{In-Engine-Memory and In-Memory File System} 
+
+
 
 \subsubsection{Local Disk (Page Caching)} % 0.5 page
 
-% Perhaps refer to this: https://ieeexplore.ieee.org/abstract/document/5496998
 
-% 15 cores per executor can lead to bad I/O throughput
-% http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2/
+
+% Perhaps refer to this: https://ieeexplore.ieee.org/abstract/document/5496998
 
 % measured disk bandwidth with random I/O, very different from sequential
 
-The Linux kernel uses in-memory page caching to speed-up disk writes. 
-When a process calls the \texttt{write()} system call, data is copied 
-to a memory cache that is asynchronously written to disk by flusher 
-threads when memory shrinks, ``dirty" (unwritten) data grows, or a 
-process invokes the \texttt{sync()} system call~\cite{love2010linux}. 
-The flushing of page cache to disk is also called the writeback 
-process.
+Storing data on local disks obviously enables data locality as tasks 
+executed on the node where their input files reside do not require to 
+transfer input or output data. However, in absence of a more specific 
+file system such as the Hadoop Distributed File System (HDFS) to handle 
+file replication across computing nodes, data locality comes at the price
+of stringent scheduling restrictions, as tasks can only be scheduled to the
+single node that contains their input data.
+% this brings data locality but not at the level of HDFS because replication isn't there and 
+% there is only 1 single option to schedule a task while preserving data locality.
 
-Page caching has a dramatic effect on I/O, reducing the duration of 
-disk writes by several orders of magnitude. It is essentially a way to 
+The performance of local disk accesses is strongly dependent on the 
+page caching mechanism provided by the Linux kernel, described in great 
+details in~\cite{love2010linux}. To summarize, data read from disk 
+remains cached in memory until evicted by an LRU (Least Recently Used) 
+strategy. When a process invokes the \texttt{read()} system call, the 
+kernel will return the data directly from memory if the requested data 
+lies in the page cache. Such cache hits drastically speed-up data 
+reads, by masking the disk latency and limited bandwidth behind a 
+memory buffer. In effect, page caching provides in-memory computing 
+transparently to the processing engine. However, page cache eviction 
+strategies currently cannot be controlled by the application 
+\todo{check that}, which prevents processing engines to anticipate 
+reads by preloading the cache. Scheduling strategies might be designed 
+to maximize cache hits though. For instance, we hypothesize that lazy 
+evaluation would result in more cache hits by scheduling data-dependent 
+tasks on the same node.
+
+Page caching has a more dramatic effect on disk writes, reducing their 
+duration by several orders of magnitude. When a process calls the 
+\texttt{write()} system call, data is copied to a memory cache that is 
+asynchronously written to disk by flusher threads when memory shrinks, 
+``dirty" (unwritten) data grows, or a 
+process invokes the \texttt{sync()} system call. 
+This asynchronous flushing of the page cache is called 
+\emph{writeback}.
+%~ It should be noted that writeback may lead to data 
+%~ loss in case of system failure. 
+
+Page caching is essentially a way to 
 emulate in-memory computing at the kernel level, without requiring a 
 dedicated engine. The size of the page cache, however, becomes a 
 limitation when processes write faster than the disk bandwidth. When 
 this happens, the page cache rapidly fills up and writes are limited by 
-the disk write bandwidth -- typically 500~MB/s for random writes to 
+the disk write bandwidth -- about 500~MB/s for random writes to 
 contemporary SSDs  -- as if no page cache was involved.
 
 We introduce the following basic model to describe the filling and 
@@ -225,18 +291,38 @@ or null, leading to the following inequality:
 \frac{D}{C} \leq \frac{\delta}{\gamma} \label{eq:page-cache-inequality}
 \end{equation}
 This defines a data-compute ratio beyond which the page cache becomes 
-asymptotically useless, which we will use to define our benchmarks. It 
+asymptotically useless. We will use this ratio to define our benchmarks. It 
 should be noted that leveraging the page cache, and therefore ensuring 
 that Equation~\ref{eq:page-cache-inequality} holds, has important 
 performance implications: with page caching, the application will 
-experience an almost negligible write time, while without page caching 
+experience negligible write times, while without page caching 
 the write throughput will be that of the disk.
 
 % Cache eviction: LRU/n.
-% page caching is mentioned in https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/20130001600.pdf too
-% Note: writeback is dangerous as a system failure could result in data loss.
+
+\todo{How about reads?}
 
 \subsubsection{Shared File System}
+
+We model a shared file system using its global apparent bandwidth 
+$\Delta$, shared by all concurrent processes in the system. We are 
+aware that such a simplistic model does not describe at all the 
+intricacies of systems such as Lustre. In particular, metadata 
+management, RPC protocol optimizations and storage optimizations are 
+all covered under the apparent bandwidth. We do, however, consider the 
+effect of page caching in shared file systems too, since in Linux 
+writes to network-mounted volumes benefit from this feature too.
+
+As in the local disk model, we note that page caching will only be 
+useful when the flush bandwidth is greater than the write throughput of 
+the application, that is:
+\begin{equation}
+\frac{D}{C} \leq \frac{\Delta}{\Gamma}, \label{eq:page-cache-sharedfs}
+\end{equation}
+where $\Gamma$ is the max number of concurrent jobs in the cluster. 
+Note that $\frac{\Delta}{\Gamma}$ will be much lower than 
+$\frac{\delta}{\gamma}$ in Equation~\ref{eq:page-cache-inequality}.     
+
 
 % is there a page cahe when writing to a socket? there must be!
 % anyway the model is in the form of Eq 1, but now delta is the network bandwidth
@@ -256,11 +342,12 @@ the write throughput will be that of the disk.
 %~ loss is to be expected.
 
 
-% Say that we don't use HDFS because we focus on clusters and HDFS on multi-tenant clusters is difficult (refer to hadoop on demand).
+% Say that we don't use HDFS because we focus on multi-tenant clusters and HDFS on multi-tenant clusters is difficult (refer to hadoop on demand).
 
 
 % Make a table to explain where data locality and in-memory computing are
 % available.  As a summary of the models.
+
 
 % What happens when dataset and derived data is too large for disk?
 
@@ -337,8 +424,6 @@ fMRI pre-processing  & [0-1.5]
 \end{table}
 % fMRI: about 100M in, 2GB out,2 30 min processing time to 10 hours
 
-
-
 \subsubsection{Execution modes} % perhaps find a better title, it's not informative
 
 We tuned job scheduling to balance the load among
@@ -389,9 +474,7 @@ specific instrumentation in Nipype.
 % It should be important, in particular when there is contention and when
 % tasks are small. 
 
-
 % Effect of Lazy Evaluation?
-
 
 \subsection{Can \texttt{tmpfs} and Page Caches Emulate In-Memory Computing?}
 % tmpfs and local disks fill up: need cleanup.
@@ -402,9 +485,24 @@ specific instrumentation in Nipype.
 % Scheduling: load balance as much as you can.
 % (which isn't what nipype multiproc does)
 
+
+A common recommendation in Spark is to limit the number of cores per 
+executors to 5, to preserve a good I/O 
+throughput\footnote{\url{http://blog.cloudera.com/blog/2015/03/how-to-tune-your-apache-spark-jobs-part-2}}. 
+We believe that throughput degradation observed with more than 5 cores 
+per executor might be coming from full page caches.
+
 \subsection{Other Comments}
 
-% fault-tolerance: do we have anything to discuss here?
+% fault-tolerance: if you loose a node, you loose the data when it's written on disk or in memory.
+%                  then the only solution is to recompute, which spark would do automatically.
+%                  when nipype is run on lustre, it would avoid recomputing existing files, which Spark doesn't do.
+%                   this niype feature is lost when not using lustre.
+
+% Comment on the practical implications of using tmpfs or local disk: we might not get all the intermediary files.
+
+% mention burst buffers or heterogeneous storage managers as potential solutions to write to local disk, 
+% i.e., to benefit from data locality while getting your results on Lustre. 
 
 \subsection{Engine-Specific Comparisons}
 
