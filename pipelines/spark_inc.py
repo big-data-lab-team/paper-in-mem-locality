@@ -45,6 +45,7 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 
     start_time = time() - start
 
+    print('Reading image')
     # load binary data into Nibabel
     fh = nib.FileHolder(fileobj=BytesIO(data))
     im = nib.Nifti1Image.from_file_map({'header': fh, 'image': fh})
@@ -68,9 +69,23 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 def increment_data(idx, filename, data, metadata, delay, benchmark, start,
                    output_dir, iteration=0, work_dir=None, bench_file=None,
                    cli=False):
+
     start_time = time() - start
 
+    if benchmark and os.path.isdir(bench_file):
+        bench_dir = bench_file
+        try:
+            os.makedirs(bench_dir)
+        except Exception as e:
+            pass
+
+        bench_file = os.path.join(
+                        bench_dir,
+                        "bench-{}.txt".format(str(uuid.uuid1()))
+                     )
+
     if not cli:
+        print("Incrementing data in memory")
         data += 1
         sleep(delay)
     else:
@@ -86,8 +101,15 @@ def increment_data(idx, filename, data, metadata, delay, benchmark, start,
 
         fn = filename[5:] if 'file:' in filename else os.path.abspath(filename)
 
-        p = subprocess.Popen(['increment.py', fn,
-                              work_dir, '--delay', str(delay)])
+        if benchmark:
+            p = subprocess.Popen(['increment.py', fn,
+                                  work_dir, '--benchmark_file', bench_file,
+                                  '--start', str(start),
+                                  '--delay', str(delay)])
+        else:
+            p = subprocess.Popen(['increment.py', fn,
+                                  work_dir, '--delay', str(delay)])
+
         (out, err) = p.communicate()
 
         fn = os.path.basename(fn)
@@ -100,19 +122,12 @@ def increment_data(idx, filename, data, metadata, delay, benchmark, start,
 
     bench_dir = None
     if benchmark:
-        if os.path.isdir(bench_file):
-            bench_dir = bench_file
-            bench_file = None
-
         bn = os.path.basename(filename)
         write_bench('increment_data', start_time, end_time,
                     socket.gethostname(), output_dir, bn,
                     get_ident(), bench_dir, bench_file)
 
-    if bench_file is not None:
-        return (idx, filename, data, metadata, bench_file, iteration + 1)
-    else:
-        return (idx, filename, data, metadata, bench_dir, iteration + 1)
+    return (idx, filename, data, metadata, bench_file, iteration + 1)
 
 
 def save_incremented(idx, filename, data, metadata, benchmark, start,
@@ -165,7 +180,7 @@ def main():
                         help=('the folder to save incremented images to'
                               '(local fs only)'))
     parser.add_argument('iterations', type=int, help='number of iterations')
-    parser.add_argument('--delay', type=int, default=0,
+    parser.add_argument('--delay', type=float, default=0,
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
                         help='benchmark results')
@@ -199,7 +214,7 @@ def main():
     # read binary data stored in folder and create an RDD from it
 
     if not args.cli:
-        imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir))
+        imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir) + '/*')
         imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
                                              args.benchmark,
                                              start, output_dir,

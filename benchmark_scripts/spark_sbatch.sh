@@ -13,7 +13,7 @@ export SPARK_LOG_DIR=/mnt/lustrefs/spark/todelete-sparklogs
 export PYTHONIOENCODING=utf8
 
 source /mnt/lustrefs/spark/env/exp0/bin/activate
-export PATH=/mnt/lustrefs/spark/SOEN691-project:$PATH
+export PATH=/mnt/lustrefs/spark/SOEN691-project/pipelines:$PATH
 
 $SPARK_HOME/sbin/start-master.sh
 while [ -z "$MASTER_URL" ]

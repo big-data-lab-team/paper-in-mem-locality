@@ -5,59 +5,29 @@ import nibabel as nib
 from os import path as op, makedirs as md
 import time
 import subprocess
+import socket
+try:
+    from threading import get_ident
+except Exception as e:
+    from thread import get_ident
 
 
-def increment(fn, outdir, delay):
+
+def increment(fn, outdir, delay, benchmark_file, start_time):
     print('Incrementing image: ', fn)
-    '''
-    p = subprocess.Popen("iostat -y 1 1", shell=True, stdout=subprocess.PIPE,
-                      stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
 
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))
-    '''
-    start = time.time()
+    start = time.time() - start_time
     im = nib.load(fn)
-    print("read time", time.time() - start)
-    '''p = subprocess.Popen("iostat -y 1 1", shell=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
+    end = time.time() - start_time
+    print("read time", end)
+  
+    if benchmark_file is not None:
+        write_bench(benchmark_file, "Read file", start, end,
+                    socket.gethostname(), op.basename(fn), get_ident())
 
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))'''
     inc_data = im.get_data() + 1
 
     im = nib.Nifti1Image(inc_data, affine=im.affine, header=im.header)
-
-    '''p = subprocess.Popen("top -b -n 1 | head -n 10 | tail -n 2", shell=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
-
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))
-
-    p = subprocess.Popen("lsof /local", shell=True, stdout=subprocess.PIPE,
-                      stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
-
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))
-
-    p = subprocess.Popen("ps -ef", shell=True, stdout=subprocess.PIPE,
-                      stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
-
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))
-
-
-    p = subprocess.Popen("free", stdout=subprocess.PIPE,
-                      stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
-
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))'''
 
     out_fn = ('inc-{}'.format(op.basename(fn))
               if 'inc' not in op.basename(fn)
@@ -65,26 +35,24 @@ def increment(fn, outdir, delay):
 
     out_fn = op.join(outdir, out_fn)
 
-    '''p = subprocess.Popen("iostat -y 1 1", shell=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
-
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))'''
-
-    start = time.time()
+    start = time.time() - start_time
     nib.save(im, out_fn)
+    end = time.time() - start_time
     print("write time", time.time() - start)
 
-    '''p = subprocess.Popen("iostat -y 1 1", shell=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (out, err) = p.communicate()
+    if benchmark_file is not None:
+        write_bench(benchmark_file, "Write file", start, end,
+                    socket.gethostname(), op.basename(out_fn), get_ident())
 
-    print(out.encode("utf-8"))
-    print(err.encode("utf-8"))'''
     time.sleep(delay)
     print('Saved image to: ', out_fn)
 
+def write_bench(benchmark_file, name, start_time, end_time, node, filename,
+                executor):
+
+    with open(benchmark_file, 'a+') as f:
+        f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time, end_time,
+                                                   node, filename, executor))
 
 def main():
 
@@ -94,6 +62,10 @@ def main():
                         help=('the file to be incremented'))
     parser.add_argument('output_dir', type=str,
                         help='the output directory')
+    parser.add_argument('--benchmark_file', type=str, default=None,
+                        help='the file to write benchmarks to')
+    parser.add_argument('--start', type=float, default=0,
+                        help='start time of the application')
     parser.add_argument('--delay', type=int, default=0,
                         help='task duration time (in s)')
 
@@ -104,7 +76,8 @@ def main():
     except Exception as e:
         pass
 
-    increment(args.filename, args.output_dir, args.delay)
+    increment(args.filename, args.output_dir, args.delay,
+              args.benchmark_file, args.delay)
 
 
 if __name__ == '__main__':

@@ -55,10 +55,22 @@ def increment_chunk(chunk, delay, benchmark, benchmark_dir=None, cli=False):
 
     else:
         program = 'increment.py'
-        p = subprocess.Popen([program, chunk, os.getcwd(),
-                              '--delay', str(delay)],
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+
+        if benchmark:
+            benchmark_file = os.path.join(benchmark_dir,
+                                          "bench-{}.txt".format(
+                                              str(uuid.uuid1())))
+            p = subprocess.Popen([program, chunk, os.getcwd(),
+                                  '--benchmark_file', benchmark_file,
+                                  '--delay', str(delay)],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+        else:
+            p = subprocess.Popen([program, chunk, os.getcwd(),
+                                  '--delay', str(delay)],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+
         (out, err) = p.communicate()
         print(out)
         print(err)
@@ -131,7 +143,7 @@ def main():
     parser.add_argument('--cli', action='store_true',
                         help='use CLI application')
     parser.add_argument('--work_dir', type=str, help='working directory')
-    parser.add_argument('--delay', type=int, default=0,
+    parser.add_argument('--delay', type=float, default=0,
                         help='task duration time (in s)')
     parser.add_argument('--benchmark', action='store_true',
                         help='benchmark pipeline')
@@ -143,7 +155,7 @@ def main():
     args = parser.parse_args()
 
     start = time()
-    wf = Workflow('nipinc_bb')
+    wf = Workflow('npinc_bb')
 
     if args.work_dir is not None:
         wf.base_dir = os.path.abspath(args.work_dir)

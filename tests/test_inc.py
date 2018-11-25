@@ -70,12 +70,12 @@ def test_increment_spark_cli():
 
 def test_increment_nipype():
 
-    shutil.rmtree('nipinc_out', ignore_errors=True)
+    shutil.rmtree('npinc_out', ignore_errors=True)
     p = subprocess.Popen(['python', 'pipelines/nipype_inc.py', 'sample_data',
-                          'nipinc_out', '1'])
+                          'npinc_out', '1'])
     (out, err) = p.communicate()
 
-    h_prog_1 = hashlib.md5(open('nipinc_out/inc1-dummy_1.nii', 'rb').read()) \
+    h_prog_1 = hashlib.md5(open('npinc_out/inc1-dummy_1.nii', 'rb').read()) \
                       .hexdigest()
     h_exp_1 = hashlib.md5(open('tests/test_outputs/testinc_1_1.nii', 'rb')
                           .read()) \
@@ -83,12 +83,12 @@ def test_increment_nipype():
 
     assert h_prog_1 == h_exp_1
 
-    shutil.rmtree('nipinc_out')
+    shutil.rmtree('npinc_out')
     p = subprocess.Popen(['python', 'pipelines/nipype_inc.py', 'sample_data',
-                          'nipinc_out', '10'])
+                          'npinc_out', '10'])
     p.communicate()
 
-    h_prog_10 = hashlib.md5(open('nipinc_out/inc10-dummy_1.nii', 'rb')
+    h_prog_10 = hashlib.md5(open('npinc_out/inc10-dummy_1.nii', 'rb')
                             .read()) \
                        .hexdigest()
     h_exp_10 = hashlib.md5(open('tests/test_outputs/testinc_1_10.nii', 'rb')
@@ -100,13 +100,13 @@ def test_increment_nipype():
 
 def test_increment_nipype_cli():
 
-    shutil.rmtree('nipinc_out', ignore_errors=True)
+    shutil.rmtree('npinc_out', ignore_errors=True)
     p = subprocess.Popen(['python', 'pipelines/nipype_inc.py', 'sample_data',
-                          'nipinc_out', '1', '--cli', '--work_dir',
-                          'nipinc_tmp'])
+                          'npinc_out', '1', '--cli', '--work_dir',
+                          'npinc_tmp'])
     (out, err) = p.communicate()
 
-    h_prog_1 = hashlib.md5(open('nipinc_out/inc1-dummy_1.nii', 'rb').read()) \
+    h_prog_1 = hashlib.md5(open('npinc_out/inc1-dummy_1.nii', 'rb').read()) \
                       .hexdigest()
     h_exp_1 = hashlib.md5(open('tests/test_outputs/testinc_1_1.nii', 'rb')
                           .read()) \
@@ -114,13 +114,13 @@ def test_increment_nipype_cli():
 
     assert h_prog_1 == h_exp_1
 
-    shutil.rmtree('nipinc_out')
+    shutil.rmtree('npinc_out')
     p = subprocess.Popen(['python', 'pipelines/nipype_inc.py', 'sample_data',
-                          'nipinc_out', '10', '--cli', '--work_dir',
-                          'nipinc_tmp'])
+                          'npinc_out', '10', '--cli', '--work_dir',
+                          'npinc_tmp'])
     p.communicate()
 
-    h_prog_10 = hashlib.md5(open('nipinc_out/inc10-dummy_1.nii', 'rb')
+    h_prog_10 = hashlib.md5(open('npinc_out/inc10-dummy_1.nii', 'rb')
                             .read()) \
                        .hexdigest()
     h_exp_10 = hashlib.md5(open('tests/test_outputs/testinc_1_10.nii', 'rb')
@@ -145,12 +145,12 @@ def test_benchmark_spark():
 
 def test_benchmark_nipype():
 
-    shutil.rmtree('nipinc_out')
-    p = subprocess.Popen(['python', 'pipelines/spark_inc.py', 'sample_data',
-                          'nipinc_out', '1', '--benchmark'],
+    shutil.rmtree('npinc_out')
+    p = subprocess.Popen(['python', 'pipelines/nipype_inc.py', 'sample_data',
+                          'npinc_out', '1', '--benchmark'],
                          stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE)
     (out, err) = p.communicate()
 
-    out = [fn for fn in os.listdir('nipinc_out') if fn.startswith('benchmark')]
+    out = [fn for fn in os.listdir('npinc_out') if fn.startswith('benchmark')]
     assert len(out) == 1

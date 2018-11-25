@@ -5,12 +5,15 @@ from random import shuffle
 from time import sleep
 import sys
 import subprocess
+import json
 
+
+num_nodes = 14
 slurm_spark = {
                "partition": "requestq",
                "reservation": "spark",
-               "time": "35:00:00",
-               "nodes": "16",
+               "time": "99:00:00",
+               "nodes": num_nodes + 1,
                "mem": "183G",
                "cpus-per-task": "40",
                "ntasks-per-node": "1"
@@ -19,7 +22,7 @@ slurm_spark = {
 slurm_nipype = {
                 "partition": "requestq",
                 "reservation": "spark",
-                "time": "35:00:00",
+                "time": "99:00:00",
                 "nodes": "1",
                 "mem": "183G",
                 "cpus-per-task": "1",
@@ -45,8 +48,8 @@ filesystems = {
                 'lustre': lustre
               }
 
-spark_script='/mnt/lustrefs/spark/SOEN691-project/spark_inc.py'
-nipype_script='/mnt/lustrefs/spark/SOEN691-project/nipype_inc.py'
+spark_script='/mnt/lustrefs/spark/SOEN691-project/pipelines/spark_inc.py'
+nipype_script='/mnt/lustrefs/spark/SOEN691-project/pipelines/nipype_inc.py'
 
 bb_125dir =  op.join(data_dir, '125_splits')
 bb_30dir = op.join(data_dir, '30_splits')
@@ -54,7 +57,9 @@ bb_750dir = op.join(data_dir, '750_splits')
 hbb_125dir = op.join(data_dir, 'half_bb/125_splits')
 mri_125dir = op.join(data_dir, 'mri/125_splits')
 
-num_nodes = 15
+data_names = {"bb_125dir": bb_125dir, "bb_30dir": bb_30dir,
+              "bb_750dir": bb_750dir, "hbb_125dir": hbb_125dir,
+              "mri_125dir": mri_125dir}
 
 legends = {
             bb_125dir: op.join(data_dir, '125_splits_legend.txt'),
@@ -63,412 +68,17 @@ legends = {
             hbb_125dir: op.join(data_dir, 'half_bb/125_splits_legend.txt'),
             mri_125dir: op.join(data_dir, 'mri/125_splits_legend.txt')
           }
-
-conditions = [
-              { 
-                  "framework": "spark",
-                  "filesystem": "mem",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "mem",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "mem",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 100
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "mem",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "mem",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "mem",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "mem",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "mem",
-                 "delay": 900,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              { 
-                  "framework": "spark",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "local",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "local",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "local",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "local",
-                 "delay": 55,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              { 
-                  "framework": "spark",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "tmpfs",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "tmpfs",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "tmpfs",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "tmpfs",
-                 "delay": 900,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              { 
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 100
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "spark",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "lustre",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "spark",
-                 "filesystem": "lustre",
-                 "delay": 900,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              { 
-                  "framework": "nipype",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "local",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "local",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "local",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "nipype",
-                 "filesystem": "local",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "nipype",
-                 "filesystem": "local",
-                 "delay": 900,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              { 
-                  "framework": "nipype",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "tmpfs",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "tmpfs",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "tmpfs",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "nipype",
-                 "filesystem": "tmpfs",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "nipype",
-                 "filesystem": "tmpfs",
-                 "delay": 900,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              { 
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 1
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": bb_125dir,
-                  "iterations": 100
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 229,
-                  "dataset": bb_30dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 10,
-                  "dataset": bb_750dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": hbb_125dir,
-                  "iterations": 10
-              },
-              {
-                  "framework": "nipype",
-                  "filesystem": "lustre",
-                  "delay": 55,
-                  "dataset": mri_125dir,
-                  "iterations": 10
-              },
-              {
-                 "framework": "nipype",
-                 "filesystem": "lustre",
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-              {
-                 "framework": "nipype",
-                 "filesystem": "lustre",
-                 "delay": 900,
-                 "dataset": bb_125dir,
-                 "iterations": 10
-              },
-             ]
+print(sys.argv[1])
+with open(sys.argv[1], 'r') as f:
+    conditions = json.loads(f.read())
 
 shuffle(conditions)
 
+num_exp = len(conditions)
+count = 0
+
 for cdn in conditions:
+    print("Setting up experiment ", cdn["experiment"])
     cmd = []
     out_dir = ""
     work_dir = ""
@@ -488,6 +98,8 @@ for cdn in conditions:
         work_dir = "npwork"
         slurm_conf = slurm_nipype
 
+    cdn["dataset"] = data_names[cdn["dataset"]]
+
     cmd.append(cdn["dataset"])
 
     if cdn["dataset"] == bb_125dir:
@@ -495,10 +107,10 @@ for cdn in conditions:
         slurm_conf["cpus-per-task"] = 9
     elif cdn["dataset"] == bb_30dir:
         cdn_ident += "30BB"
-        slurm_conf["cpus-per-task"] = 2
+        slurm_conf["cpus-per-task"] = 3
     elif cdn["dataset"] == bb_750dir:
         cdn_ident += "750BB"
-        slurm_conf["cpus-per-task"] = 25
+        slurm_conf["cpus-per-task"] = 27
     elif cdn["dataset"] == mri_125dir:
         cdn_ident += "125MRI"
         slurm_conf["cpus-per-task"] = 9
@@ -535,7 +147,7 @@ for cdn in conditions:
         print("Submitting command: ", cmd)
 
         s.run("bash " + spark_template, cmd_kwargs={"spscript": cmd},
-              _cmd=sys.argv[1])
+              _cmd=sys.argv[2])
     else:
         with open(legends[cdn["dataset"]]) as legend:
             images = legend.read().split()
@@ -564,7 +176,7 @@ for cdn in conditions:
 
                 print("Submitting command: ", ncmd)
                 s.run("bash " + nipype_template, cmd_kwargs={"npscript": ncmd},
-                      _cmd=sys.argv[1])
+                      _cmd=sys.argv[2])
 
     p = subprocess.call(['sbatch', cleanup_script])
     
@@ -576,8 +188,10 @@ for cdn in conditions:
                          shell=True, stdout=subprocess.PIPE)
     (out, _) = p.communicate()
 
+    count += 1
+
     while int(out) > 1:
-        sleep(300)
+        if count < num_exp: sleep(300)
         p = subprocess.Popen(['squeue -u tristan.concordia | wc -l'],
                          shell=True, stdout=subprocess.PIPE)
         (out, _) = p.communicate()

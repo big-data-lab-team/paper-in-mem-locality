@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --partition requestq       # Queue (Partition in slurm)
 #SBATCH --reservation=spark
-#SBATCH --time=00:05:00
-#SBATCH --nodes=16
+#SBATCH --time=10:00:00
+#SBATCH --nodes=15
 #SBATCH --mem=20G
 #SBATCH --cpus-per-task=1
 #SBATCH --ntasks-per-node=1
