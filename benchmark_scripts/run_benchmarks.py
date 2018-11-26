@@ -8,7 +8,7 @@ import subprocess
 import json
 
 
-num_nodes = 14
+num_nodes = 15
 slurm_spark = {
                "partition": "requestq",
                "reservation": "spark",
@@ -107,10 +107,10 @@ for cdn in conditions:
         slurm_conf["cpus-per-task"] = 9
     elif cdn["dataset"] == bb_30dir:
         cdn_ident += "30BB"
-        slurm_conf["cpus-per-task"] = 3
+        slurm_conf["cpus-per-task"] = 2
     elif cdn["dataset"] == bb_750dir:
         cdn_ident += "750BB"
-        slurm_conf["cpus-per-task"] = 27
+        slurm_conf["cpus-per-task"] = 25
     elif cdn["dataset"] == mri_125dir:
         cdn_ident += "125MRI"
         slurm_conf["cpus-per-task"] = 9

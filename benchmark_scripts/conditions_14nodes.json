@@ -99,7 +99,7 @@
                   "experiment": 4.0,
                   "framework": "spark",
                   "filesystem": "mem",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },
@@ -211,7 +211,7 @@
                   "experiment": 11.1,
                   "framework": "spark",
                   "filesystem": "local",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },
@@ -323,7 +323,7 @@
                   "experiment": 19.1,
                   "framework": "spark",
                   "filesystem": "tmpfs",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },
@@ -467,7 +467,7 @@
                   "experiment": 27.1,
                   "framework": "spark",
                   "filesystem": "lustre",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },
@@ -579,7 +579,7 @@
                   "experiment": 34.1,
                   "framework": "nipype",
                   "filesystem": "local",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },
@@ -588,7 +588,7 @@
                   "framework": "nipype",
                   "filesystem": "local",
                   "delay": 3.52,
-                  "dataset": "bb_750dir",
+                  "dataset": "bb_125dir",
                   "iterations": 10
               },
               {
@@ -691,7 +691,7 @@
                   "experiment": 41.1,
                   "framework": "nipype",
                   "filesystem": "tmpfs",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },
@@ -835,7 +835,7 @@
                   "experiment": 49.1,
                   "framework": "nipype",
                   "filesystem": "lustre",
-                  "delay": 1.16,
+                  "delay": 0.59,
                   "dataset": "bb_750dir",
                   "iterations": 10
               },

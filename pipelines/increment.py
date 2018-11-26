@@ -66,7 +66,7 @@ def main():
                         help='the file to write benchmarks to')
     parser.add_argument('--start', type=float, default=0,
                         help='start time of the application')
-    parser.add_argument('--delay', type=int, default=0,
+    parser.add_argument('--delay', type=float, default=0,
                         help='task duration time (in s)')
 
     args = parser.parse_args()
