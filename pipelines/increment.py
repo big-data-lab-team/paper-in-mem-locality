@@ -22,7 +22,7 @@ def increment(fn, outdir, delay, benchmark_file, start_time):
     print("read time", end)
   
     if benchmark_file is not None:
-        write_bench(benchmark_file, "Read file", start, end,
+        write_bench(benchmark_file, "read_file", start, end,
                     socket.gethostname(), op.basename(fn), get_ident())
 
     inc_data = im.get_data() + 1
@@ -41,7 +41,7 @@ def increment(fn, outdir, delay, benchmark_file, start_time):
     print("write time", time.time() - start)
 
     if benchmark_file is not None:
-        write_bench(benchmark_file, "Write file", start, end,
+        write_bench(benchmark_file, "write_file", start, end,
                     socket.gethostname(), op.basename(out_fn), get_ident())
 
     time.sleep(delay)
