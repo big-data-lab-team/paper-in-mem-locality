@@ -36,27 +36,19 @@ def genfig(exp, makef, outf, cond):
             if exp == 1:
                 if cond is not None and delay == cond:
                     bench_res[(engine, fs)][0].append(iterations)
-                    bench_res[(engine, fs)][1].append(float(
-                        bench.split(' ')[2]))
                 elif cond is None and delay == 3.44:
                     bench_res[(engine, fs)][0].append(iterations)
-                    bench_res[(engine, fs)][1].append(float(
-                        bench.split(' ')[2]))
             elif exp == 2:
                 bench_res[(engine, fs)][0].append(int(chunks))
-                bench_res[(engine, fs)][1].append(float(bench.split(' ')[2]))
             elif exp == 3:
                 bench_res[(engine, fs)][0].append(im)
-                bench_res[(engine, fs)][1].append(float(bench.split(' ')[2]))
             else:
                 if cond is not None and iterations == cond:
                     bench_res[(engine, fs)][0].append(delay)
-                    bench_res[(engine, fs)][1].append(float(
-                        bench.split(' ')[2]))
                 elif cond is None and iterations == 10:
                     bench_res[(engine, fs)][0].append(delay)
-                    bench_res[(engine, fs)][1].append(float(
-                        bench.split(' ')[2]))
+
+            bench_res[(engine, fs)][1].append(float(bench.split(' ')[2]))
 
         plt.plot(bench_res[('sp', 'mem')][0],
                  bench_res[('sp', 'mem')][1], 
