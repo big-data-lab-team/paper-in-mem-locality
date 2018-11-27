@@ -19,9 +19,9 @@ def parse_bench_file_name(file_name):
     if '750' in stringsit[1]:
         blocks = 750
     data = 'MRI'
-    if 'HB' in stringsit[1]:
-        data = 'HB'
-    if 'BB' in stringsit[1]:
+    if 'HBB' in stringsit[1]:
+        data = 'HBB'
+    elif 'BB' in stringsit[1]:
         data = 'BB'
     
     return iterations, data, fs, wf, delay, blocks
