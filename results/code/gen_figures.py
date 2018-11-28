@@ -3,16 +3,22 @@ import matplotlib.pyplot as plt
 import sys
 import argparse
 
+exp14_delays = [2.4, 3.44, 7.68, 320]
+exp2_delays = [0.59, 3.52, 14.67]
+exp3_delays = 1.76
 
 def genfig(exp, makef, outf, cond):
-    bench_res = {('sp', 'mem'): ([], []),
-                 ('sp', 'tmpfs'): ([], []),
-                 ('sp', 'local'): ([], []),
-                 ('sp', 'lustre'): ([], []),
-                 ('np', 'tmpfs'): ([], []),
-                 ('np', 'local'): ([], []),
-                 ('np', 'lustre'): ([], [])
+    bench_res = {('sp', 'mem'): [],
+                 ('sp', 'tmpfs'): [],
+                 ('sp', 'local'): [],
+                 ('sp', 'lustre'): [],
+                 ('np', 'tmpfs'): [],
+                 ('np', 'local'): [],
+                 ('np', 'lustre'): []
                 }
+
+    if exp == 1 and cond is None: cond = 3.44
+    elif exp == 4 and cond is None: cond = 10
 
     with open(makef, 'r') as f:
         for line in f:
@@ -34,43 +40,54 @@ def genfig(exp, makef, outf, cond):
             iterations = int(iterations)
 
             if exp == 1:
-                if cond is not None and delay == cond:
-                    bench_res[(engine, fs)][0].append(iterations)
-                elif cond is None and delay == 3.44:
-                    bench_res[(engine, fs)][0].append(iterations)
+                if delay != cond: continue
+                bench_res[(engine, fs)].append((iterations,
+                                                float(bench.split(' ')[2])))
             elif exp == 2:
-                bench_res[(engine, fs)][0].append(int(chunks))
+                if delay not in exp2_delays: continue
+                bench_res[(engine, fs)].append((chunks,
+                                                float(bench.split(' ')[2])))
             elif exp == 3:
-                bench_res[(engine, fs)][0].append(im)
+                if delay != exp3_delays: continue
+                bench_res[(engine, fs)].append((im,
+                                                float(bench.split(' ')[2])))
             else:
-                if cond is not None and iterations == cond:
-                    bench_res[(engine, fs)][0].append(delay)
-                elif cond is None and iterations == 10:
-                    bench_res[(engine, fs)][0].append(delay)
+                if delay not in exp14_delays or iterations != cond: continue
+                bench_res[(engine, fs)].append((delay,
+                                                float(bench.split(' ')[2])))
 
-            bench_res[(engine, fs)][1].append(float(bench.split(' ')[2]))
+        for key in bench_res:
+            if exp == 3:
+                bench_res[key] = sorted(bench_res[key],
+                                        key=lambda tup: tup[0],
+                                        reverse=True)
+            else:
+                bench_res[key] = sorted(bench_res[key], key=lambda tup: tup[0])
+            x_labels = [x[0] for x in bench_res[key]]
+            y_labels = [y[1] for y in bench_res[key]]
+            bench_res[key] = (x_labels, y_labels)
 
         plt.plot(bench_res[('sp', 'mem')][0],
                  bench_res[('sp', 'mem')][1], 
-                 'yo', label='Spark in-memory')
+                 'y', label='Spark in-memory')
         plt.plot(bench_res[('sp', 'tmpfs')][0],
                  bench_res[('sp', 'tmpfs')][1],
-                 'go', label='Spark tmpfs')
+                 'g', label='Spark tmpfs')
         plt.plot(bench_res[('sp', 'local')][0],
                  bench_res[('sp', 'local')][1],
-                 'bo', label='Spark local')
+                 'b', label='Spark local')
         plt.plot(bench_res[('sp', 'lustre')][0],
                  bench_res[('sp', 'lustre')][1],
-                 'ro', label='Spark lustre')
+                 'r', label='Spark lustre')
         plt.plot(bench_res[('np', 'tmpfs')][0],
                  bench_res[('np', 'tmpfs')][1],
-                 'g+', label='Nipype tmpfs')
+                 'g--', label='Nipype tmpfs')
         plt.plot(bench_res[('np', 'local')][0],
                  bench_res[('np', 'local')][1],
-                 'b+', label='Nipype local')
+                 'b--', label='Nipype local')
         plt.plot(bench_res[('np', 'lustre')][0],
                  bench_res[('np', 'lustre')][1],
-                 'r+', label='Nipype lustre')
+                 'r--', label='Nipype lustre')
 
         #plt.xlim(0, 20)
         #plt.ylim(0, 200)

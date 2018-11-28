@@ -35,7 +35,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     
     bandwidths = { # MiB/s
         'lustre': 401.49,
-        'local': 600, # TODO: get the actual value
+        'local': 1480.2, # TODO: get the actual value
         'tmpfs': 1793.75
     }
     
@@ -84,7 +84,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
                                                              b['blocks'],
                                                              b['data_file'],
                                                              b['task_duration'])
-        if benches.get(in_mem_file) == None:
+        if benches.get(in_mem_file) == None or 'MRI' in in_mem_file:
             continue # file isn't in benchmark
         b['memory-speed-up'] = (
             b['makespan'] / benches[in_mem_file]['makespan']
@@ -120,8 +120,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     from matplotlib import pyplot as plt
     #plt.plot(x_mem, y_mem, 'o', label="In memory")
     #plt.plot(x_tmpfs, y_tmpfs, 'o', label="tmpfs")
-    plt.plot(x_disk, y_disk, '+', label="Local Disk")
-    plt.plot(x_sfs, y_sfs, '+', label="Lustre")
+    plt.plot(x_disk, y_disk, 'b+', label="Local Disk")
     rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
     plt.gca().add_patch(rect)
     rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
@@ -132,7 +131,22 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     plt.ylim(0)
     plt.xlim(0)
     #plt.show()
-    plt.savefig(out_file)
+    plt.savefig(os.path.join(os.path.dirname(out_file), 
+                'local-{}'.format(os.path.basename(out_file))))
+    plt.figure()
+    plt.plot(x_sfs, y_sfs, 'r+', label="Lustre")
+    rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
+    plt.gca().add_patch(rect)
+    rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
+    plt.gca().add_patch(rect)
+    plt.xlabel("(D/C) / (d(D)elta/g(G)amma)")
+    plt.ylabel("Speed-up of Spark in-mem")
+    plt.legend()
+    plt.ylim(0)
+    plt.xlim(0)
+    #plt.show()
+    plt.savefig(os.path.join(os.path.dirname(out_file), 
+                'lustre-{}'.format(os.path.basename(out_file))))
 
 
 def main():

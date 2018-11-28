@@ -230,6 +230,7 @@ def main():
         files = glob(os.path.join(args.bb_dir, '*'))
         fidx = [i for i in range(0, len(files))]
         imRDD = sc.parallelize(zip(fidx, files), len(files))
+        if args.work_dir is None: args.work_dir = output_dir
         work_dir = os.path.abspath(os.path.join(args.work_dir,
                                                 'app-{}'.format(app_uuid)))
         print(work_dir)
