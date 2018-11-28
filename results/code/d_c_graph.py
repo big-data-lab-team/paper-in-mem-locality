@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import utils
 import sys  
 import os
 import argparse
@@ -35,7 +34,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     
     bandwidths = { # MiB/s
         'lustre': 401.49,
-        'local': 1480.2, 
+        'local': 292, 
         'tmpfs': 1793.75
     }
     
@@ -135,6 +134,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     plt.savefig(os.path.join(os.path.dirname(out_file), 
                 'tmpfs-{}'.format(os.path.basename(out_file))))
     
+    plt.figure()
     plt.plot(x_disk, y_disk, 'b+', label="Local Disk")
     rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
     plt.gca().add_patch(rect)
