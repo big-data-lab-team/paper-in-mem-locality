@@ -35,7 +35,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     
     bandwidths = { # MiB/s
         'lustre': 401.49,
-        'local': 1480.2, # TODO: get the actual value
+        'local': 1480.2, 
         'tmpfs': 1793.75
     }
     
@@ -102,12 +102,15 @@ def d_c_fig(bench_dir, makespan_file, out_file):
         if benches[file_name].get('memory-speed-up') == None:
             continue # file isn't in benchmark
         fs = benches[file_name]['file_system']
-        if fs == 'tmpfs' or fs == 'mem':
+        if fs == 'mem':
             continue
-        if fs == 'lustre':
+        elif fs == 'tmpfs':
+            x = x_tmpfs
+            y = y_tmpfs
+        elif fs == 'lustre':
             x = x_sfs
             y = y_sfs
-        if fs == 'local':
+        elif fs == 'local':
             x = x_disk
             y = y_disk
         gamma = gammas[benches[file_name]['blocks']]
@@ -116,10 +119,22 @@ def d_c_fig(bench_dir, makespan_file, out_file):
         x.append((benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma))
         y.append(benches[file_name]['memory-speed-up'])
 
-    print(len(x_sfs))
     from matplotlib import pyplot as plt
     #plt.plot(x_mem, y_mem, 'o', label="In memory")
-    #plt.plot(x_tmpfs, y_tmpfs, 'o', label="tmpfs")
+    plt.plot(x_tmpfs, y_tmpfs, 'g+', label="tmpfs")
+    rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
+    plt.gca().add_patch(rect)
+    rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
+    plt.gca().add_patch(rect)
+    plt.xlabel("(D/C) / (d(D)elta/g(G)amma)")
+    plt.ylabel("Speed-up of Spark in-mem")
+    plt.legend()
+    plt.ylim(0)
+    plt.xlim(0)
+    #plt.show()
+    plt.savefig(os.path.join(os.path.dirname(out_file), 
+                'tmpfs-{}'.format(os.path.basename(out_file))))
+    
     plt.plot(x_disk, y_disk, 'b+', label="Local Disk")
     rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
     plt.gca().add_patch(rect)
