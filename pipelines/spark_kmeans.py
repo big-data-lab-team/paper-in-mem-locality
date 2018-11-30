@@ -18,7 +18,10 @@ def get_nearest_centroid(d, c):
     for centroid in c:
         c_dist = abs(d-centroid)
 
-        if distance is None or c_dist < distance:
+        if (distance is None or c_dist < distance
+                or (c_dist == distance
+                    and ((d % 2 == 1 and nearest_c < centroid)
+                         or nearest_c > centroid))):
             distance = c_dist
             nearest_c = centroid
 
@@ -27,7 +30,7 @@ def get_nearest_centroid(d, c):
 
 def update_centroids(d):
 
-    updated = sum(d)/len(d)
+    updated = float(sum(d))/len(d)
 
     return updated
 
@@ -66,6 +69,7 @@ def save_segmented(d, assignments, out):
 
 
 def main():
+    # mri centroids: 0.0, 125.8, 251.6, 377.4
     conf = SparkConf().setAppName("Spark kmeans")
     sc = SparkContext.getOrCreate(conf=conf)
 
@@ -76,17 +80,14 @@ def main():
                         " fs only)")
     parser.add_argument('iters', type=int, help="maximum number of kmean "
                                                 "iterations")
+    parser.add_argument('centroids', type=float, nargs='+',
+                        help="cluster centroids")
     parser.add_argument('output_dir', type=str, help="the folder to save "
                                                      "segmented images to "
                                                      "(local fs only)")
     args = parser.parse_args()
 
-    # fixed centroids to be able to compare with nipype implementation
-    centroids = [50314.747730447438, 5.4095965052460562, 29218.970083958127,
-                 60767.571375735897]
-    # [60741.945981249322, 28998.276891703455, 5.3324138454658172,
-    #   49808.209711495881]
-    # [0, 26214, 45874.5, 65535]
+    centroids = args.centroids
 
     output_dir = op.abspath(args.output_dir)
 
@@ -130,7 +131,7 @@ def main():
                                                  output_dir)
                         ).collect()
 
-    print("***FINAL CENTROIDS***:", centroids)
+    print("***FINAL CENTROIDS***:", count, centroids)
     print(results)
 
 

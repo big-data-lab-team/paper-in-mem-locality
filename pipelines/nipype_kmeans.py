@@ -6,6 +6,7 @@ from shutil import rmtree
 import argparse
 import os
 import glob
+import uuid
 
 
 
@@ -21,6 +22,7 @@ def get_nearest_centroid(img, centroids):
     for vox in data:
         distance = None
         nearest_c = None
+        nearest_cv = None
 
         for c in centroids:
             c_dist = abs(vox - c[1])
@@ -28,6 +30,16 @@ def get_nearest_centroid(img, centroids):
             if distance is None or c_dist < distance:
                 distance = c_dist
                 nearest_c = c[0]
+                nearest_cv = c[1]
+            '''elif c_dist == distance:
+                if vox % 2 == 1:
+                    if nearest_cv < c[1]:
+                        nearest_c = c[0]
+                        nearest_cv = c[1]
+                else:
+                    if nearest_cv > c[1]:
+                        nearest_c = c[0]
+                        nearest_cv = c[1]'''
 
         if nearest_c not in assignments:
             assignments[nearest_c] = [vox]
@@ -80,23 +92,28 @@ def classify_chunks(img, assignments):
     import nibabel as nib
     import pickle
     from os import path as op
+    from numpy import where, isin
 
+    # assume all assignment files fit in memory
     a_files = [t for l in assignments for t in l]
-
     i = nib.load(img)
     data = i.get_fdata()
     shape = i.shape
 
-    for z in range(0, shape[2]):
-        for y in range(0, shape[1]):
-            for x in range(0, shape[0]):
-                for t in a_files:
-                    with open(t[1], 'rb') as f:
-                        elements = set(pickle.load(f))
+    assignments = {}
 
-                        if data[x][y][z] in elements:
-                            data[x][y][z] = t[0]
-                            break
+    for t in a_files:
+        if t[0] not in assignments:
+            with open(t[1], 'rb') as f:
+                assignments[t[0]] = set(pickle.load(f))
+        else:
+            with open(t[1], 'rb') as f:
+                assignments[t[0]].update(pickle.load(f))
+
+
+    for k in assignments:
+        assigned_voxels = list(assignments[k])
+        data[where(isin(data, assigned_voxels))] = k
 
     i_out = nib.Nifti1Image(data, i.affine, i.header)
     i_name = op.basename(img)
@@ -121,6 +138,8 @@ def main():
     parser.add_argument('bb_dir', type=str, help='The folder containing '
                         'BigBrain NIfTI images (local fs only)')
     parser.add_argument('iters', type=int, help='The number of iterations')
+    parser.add_argument('centroids', type=float, nargs='+',
+                        help="cluster centroids")
     parser.add_argument('output_dir', type=str, help='the folder to save '
                         'the final centroids to (local fs only)')
     parser.add_argument('--benchmark', action='store_true',
@@ -150,12 +169,9 @@ def main():
 
     # get all files in directory
     bb_files = glob.glob(os.path.join(os.path.abspath(args.bb_dir), '*'))
-    seed(2)
     dtype = iinfo('uint16')
 
-    centroids = sample(range(dtype.min, dtype.max), 5)
-
-    centroids = list(zip(range(0, len(centroids)), centroids))
+    centroids = list(zip(range(0, len(args.centroids)), args.centroids))
 
     c_changed = True
 
@@ -207,7 +223,7 @@ def main():
         if c_changed and idx < args.iters:
             print("it", idx, c_vals)
         else:
-            print("***FINAL CENTROIDS***:", c_vals)
+            print("***FINAL CENTROIDS***:", idx ,c_vals)
 
             res_wf = Workflow('km_classify')
 
@@ -233,10 +249,9 @@ def main():
 
                 res_wf.connect([(cc, sc, [('out_file', 'img')])])
 
-                res_wf.run(plugin='MultiProc')
-
                 c_idx += 1
 
+            res_wf.run(plugin='MultiProc')
         end = time()
 
         if args.benchmark:
