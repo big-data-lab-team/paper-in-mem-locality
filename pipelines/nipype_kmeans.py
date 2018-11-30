@@ -27,19 +27,13 @@ def get_nearest_centroid(img, centroids):
         for c in centroids:
             c_dist = abs(vox - c[1])
 
-            if distance is None or c_dist < distance:
+            if (distance is None or c_dist < distance
+                    or (c_dist == distance
+                        and ((vox % 2 == 1 and nearest_cv < c[1])
+                             or (vox % 2 == 0 and nearest_cv > c[1]))):
                 distance = c_dist
                 nearest_c = c[0]
                 nearest_cv = c[1]
-            '''elif c_dist == distance:
-                if vox % 2 == 1:
-                    if nearest_cv < c[1]:
-                        nearest_c = c[0]
-                        nearest_cv = c[1]
-                else:
-                    if nearest_cv > c[1]:
-                        nearest_c = c[0]
-                        nearest_cv = c[1]'''
 
         if nearest_c not in assignments:
             assignments[nearest_c] = [vox]

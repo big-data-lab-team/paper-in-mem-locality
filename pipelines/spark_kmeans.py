@@ -21,7 +21,7 @@ def get_nearest_centroid(d, c):
         if (distance is None or c_dist < distance
                 or (c_dist == distance
                     and ((d % 2 == 1 and nearest_c < centroid)
-                         or nearest_c > centroid))):
+                         or (d % 2 == 0 and nearest_c > centroid)))):
             distance = c_dist
             nearest_c = centroid
 
