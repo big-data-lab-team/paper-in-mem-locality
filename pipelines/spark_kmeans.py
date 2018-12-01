@@ -47,6 +47,7 @@ def get_voxels(d):
 
 
 def save_segmented(d, assignments, out):
+
     # read data into nibabel
     fh = nib.FileHolder(fileobj=BytesIO(d[1]))
     im = nib.Nifti1Image.from_file_map({'header': fh, 'image': fh})
@@ -62,7 +63,7 @@ def save_segmented(d, assignments, out):
     im_seg = nib.Nifti1Image(data, im.affine)
 
     # save segmented image
-    output_file = op.join(out, 'seg-' + op.basename(d[0]))
+    output_file = op.join(out, 'classified-' + op.basename(d[0]))
     nib.save(im_seg, output_file)
 
     return (output_file, "SAVED")
@@ -103,13 +104,13 @@ def main():
     voxelRDD = imRDD.flatMap(get_voxels).cache()
 
     c_changed = True
-    count = 1
+    count = 0
     assignments = None
 
-    while c_changed or count > args.iters:
+    while c_changed or count < args.iters:
         assignments = voxelRDD.map(lambda x: get_nearest_centroid(x,
                                                                   centroids)) \
-                              .groupByKey()
+                              .groupByKey().sortByKey()
 
         updated_centroids = sc.parallelize(centroids) \
                               .zipWithIndex() \
@@ -119,7 +120,7 @@ def main():
 
         c_changed = not bool(set(centroids).intersection(updated_centroids))
 
-        centroids = updated_centroids
+        centroids = sorted(updated_centroids)
 
         if c_changed:
             print("it", count, centroids)

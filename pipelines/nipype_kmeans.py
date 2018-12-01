@@ -15,7 +15,7 @@ def get_nearest_centroid(img, centroids):
     import pickle
     from os import path as op
 
-    data = nib.load(img).get_fdata().flatten()
+    data = nib.load(img).get_data().flatten()
 
     assignments = {}
 
@@ -156,7 +156,7 @@ def classify_chunks(img, assignments):
     # assume all assignment files fit in memory
     a_files = [t for l in assignments for t in l]
     i = nib.load(img)
-    data = i.get_fdata()
+    data = i.get_data()
     shape = i.shape
 
     assignments = {}
@@ -169,12 +169,11 @@ def classify_chunks(img, assignments):
             with open(t[1], 'rb') as f:
                 assignments[t[0]].update(pickle.load(f))
 
-
     for k in assignments:
         assigned_voxels = list(assignments[k])
         data[where(isin(data, assigned_voxels))] = k
 
-    i_out = nib.Nifti1Image(data, i.affine, i.header)
+    i_out = nib.Nifti1Image(data, i.affine)
     i_name = op.basename(img)
     nib.save(i_out, i_name)
 
@@ -185,7 +184,7 @@ def save_classified(img, output_dir):
     import shutil
     from os import path as op
 
-    out_name = 'classified_{}'.format(op.basename(img))
+    out_name = 'classified-{}'.format(op.basename(img))
 
     out_file = op.join(output_dir, out_name)
 
