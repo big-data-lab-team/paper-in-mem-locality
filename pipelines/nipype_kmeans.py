@@ -3,11 +3,16 @@ from numpy import iinfo
 from random import seed, sample
 from time import time
 from shutil import rmtree
+from socket import gethostname
 import argparse
 import os
 import glob
 import uuid
-import json
+from benchmark import write_bech
+try:
+    from threading import get_ident
+except Exception as e:
+    from thread import get_ident
 
 
 def get_nearest_centroid(img, centroids):
@@ -61,10 +66,19 @@ def get_nearest_centroid(img, centroids):
 
     return outfiles
 
-def nearest_centroid_wf(partition, centroids, work_dir):
+def nearest_centroid_wf(partition, centroids, work_dir, benchmark_dir=None):
     from nipype import Workflow, MapNode, Function
     import nipype_kmeans as nk
     import uuid
+    from time import time
+    from benchmark import write_bench
+    from socket import gethostname
+    try:
+        from threading import get_ident
+    except Exception as e:
+        from thread import get_ident
+
+    start = time()
 
     wf = Workflow('km_bb{}'.format(uuid.uuid1()))
     wf.base_dir = work_dir
@@ -90,14 +104,29 @@ def nearest_centroid_wf(partition, centroids, work_dir):
                                         .assignment_files)
 
     assignments = [t for l in assignments for t in l]
+
+    end = time()
+
+    if benchmark_dir is not None:
+        bench.write_bench('get_nearest_centroid', start, end, gethostname(),          
+                          'partition', get_ident(), benchmark_dir)
     return assignments
 
 def save_classified_wf(partition, assignments, work_dir, output_dir,
-                       iteration):
+                       iteration, benchmark_dir=None):
 
     from nipype import Workflow, Node, Function
     import nipype_kmeans as nk
-    
+    from time import time
+    from benchmark import write_bench
+    from socket import gethostname
+    try:
+        from threading import get_ident
+    except Exception as e:
+        from thread import get_ident
+   
+    start = time()
+
     res_wf = Workflow('km_classify')
     res_wf.base_dir = work_dir
     c_idx = 0
@@ -124,11 +153,24 @@ def save_classified_wf(partition, assignments, work_dir, output_dir,
 
     res_wf.run(plugin='MultiProc')
 
+    end = time()
+    if benchmark_dir is not None:
+        write_bench('save_classified', start, os.gethostname(),          
+                    'partition', get_ident(), benchmark_dir)
+
     return ('Success', partition)
 
-def update_centroids(centroid, assignments):
+def update_centroids(centroid, assignments, benchmark_dir=None):
     import pickle
+    from time import time
+    from benchmark import write_bench
+    from socket import gethostname
+    try:
+        from threading import get_ident
+    except Exception as e:
+        from thread import get_ident
 
+    start = time()
     a_files = [t[1] for l in assignments for t in l if t[0] == centroid[0]]
 
     sum_elements = 0
@@ -141,13 +183,19 @@ def update_centroids(centroid, assignments):
             sum_elements += sum([float(i) for i in elements])
             num_elements += len(elements)
 
+    end = time()
+
+    if benchmark_dir is not None:
+        write_bench('update_centroids', start, os.gethostname(),          
+                    'centroid', get_ident(), benchmark_dir)
+
     if sum_elements == num_elements == 0:
         return centroid
     else:
         return (centroid[0], sum_elements/num_elements)
 
 
-def classify_chunks(img, assignments):
+def classify_chunks(img, assignments, benchmark_dir=None):
     import nibabel as nib
     import pickle
     from os import path as op
@@ -257,13 +305,15 @@ def main():
             wf.add_nodes([gc])
 
             uc_nname = 'uc_{}'.format(idx)
-            uc = MapNode(Function(input_names=['centroid', 'assignments'],
+            uc = MapNode(Function(input_names=['centroid', 'assignments',
+                                               'benchmark_dir'],
                                   output_names=['updated_centroids'],
                                   function=update_centroids),
                          name=uc_nname,
                          iterfield=['centroid'])
 
             uc.inputs.centroid = centroids
+            us.inputs.benchmark_dir = benchmark_dir
 
             wf.connect([(gc, uc, [('assignment_files', 'assignments')])])
 
@@ -333,7 +383,7 @@ def main():
 
             gc_nname = 'gc_slurm_part{}'.format(idx)
             gc = MapNode(Function(input_names=['partition', 'centroids',
-                                               'work_dir'],
+                                               'work_dir', 'benchmark_dir'],
                                   output_names=['assignment_files'],
                                   function=nearest_centroid_wf),
                          name=gc_nname,
@@ -342,6 +392,7 @@ def main():
             gc.inputs.partition = file_partitions
             gc.inputs.centroids = centroids
             gc.inputs.work_dir = work_dir
+            gc.inputs.benchmark_dir = benchmark_dir
 
             wf.add_nodes([gc])
 
@@ -390,7 +441,7 @@ def main():
         for partition in file_partitions:
             cc = Node(Function(input_names=['partition', 'assignments',
                                             'work_dir', 'output_dir',
-                                            'iteration'],
+                                            'iteration', 'benchmark_dir'],
                                output_names=['results'],
                                function=save_classified_wf),
                       name='scf_{}'.format(c_idx))
@@ -401,6 +452,7 @@ def main():
             cc.inputs.work_dir = work_dir
             cc.inputs.output_dir = output_dir
             cc.inputs.iteration = c_idx
+            cc.inputs.benchmark_dir = benchmark_dir
             res_wf.add_nodes([cc])
             c_idx += 1
 
@@ -411,27 +463,10 @@ def main():
             res_wf.run(plugin='SLURM')
 
     end = time()
+    if benchmark_dir is not None:
+        bench.write_bench('driver_program', start, end, gethostname(),          
+                          'allfiles', get_ident(), benchmark_dir)
 
-    if args.benchmark:
-        fname = 'benchmark-{}.txt'.format(app_uuid)
-        benchmark_file = os.path.abspath(os.path.join(args.output_dir,
-                                                      fname))
-        print(benchmark_file)
-
-        with open(benchmark_file, 'a+') as bench:
-            bench.write('{0} {1} {2} {3} '
-                        '{4} {5}\n'.format('driver_program',
-                                           start,
-                                           end,
-                                           socket.gethostname(),
-                                           'allfiles',
-                                           get_ident()))
-
-            for b in os.listdir(benchmark_dir):
-                with open(os.path.join(benchmark_dir, b), 'r') as f:
-                    bench.write(f.read())
-                    
-        rmtree(benchmark_dir)
 
 if __name__ == '__main__':
     main()
