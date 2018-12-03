@@ -35,31 +35,28 @@
 
 \section{Introduction} % 1 page with abstract
 
-Big Data processing engines specialize in minimizing data transfers, through 
-use of concepts such as data locality, in-memory computing and lazy evaluation,
-to speed up the processing time of such large datasets.
-Data locality was popularized by the 
-MapReduce~\cite{dean2008mapreduce} framework. Rather than performing costly 
-data transfers across the network, tasks were scheduled to the nodes where data
-was located. Apache Spark~\cite{zaharia2016apache} succeeded MapReduce with its
-incorporation of in-memory computing and lazy-evaluation which brought 
-significant speed-ups in Big Data applications. In-memory computing
-enabled data to be cached in memory whenever possible, reducing more costly
-disk I/Os between pipeline steps. Introducing lazy
-evaluation meant that results were only
-computed only when necessary, enabling further performace optimizations. 
-Frameworks such as
-MapReduce and Spark have since become mainstream tools for data analytics, 
-although many others, such as language-specific 
+Big Data processing engines reduce data-related overheads, through 
+use of concepts such as data locality, in-memory computing, and lazy evaluation.
+Data locality-aware scheduling, popularized by the MapReduce~\cite{dean2008mapreduce} 
+framework, runs tasks to the nodes holding the data rather than 
+performing costly data transfers across the network. In-memory 
+computing, adopted by MapReduce's successor Apache 
+Spark~\cite{zaharia2016apache}, caches data in memory whenever 
+possible, reducing costly disk I/Os between pipeline steps. 
+Lazy evaluation, also used in Spark, means that results are computed only 
+when necessary, enabling further performance optimizations. Frameworks 
+such as
+MapReduce and Spark have become mainstream tools for data analytics, 
+although many others, such as 
 Dask~\cite{rocklin2015dask}, are emerging. 
 Meanwhile, several scientific 
 domains including bioinformatics, physics or astronomy, have entered 
 the Big Data era due to increasing data volumes and variety. 
 However, the adoption of Big Data engines for scientific data analysis 
 remains limited, perhaps due to the widespread availability of 
-scientific processing engines such as Pegasus~\cite{deelman2005pegasus}, 
-Taverna~\cite{oinn2004taverna} and the necessary adaptations that would need to
-be made to Big Data processing engines for scientific computing. 
+scientific processing engines such as Pegasus~\cite{deelman2005pegasus} or
+Taverna~\cite{oinn2004taverna}, and the adaptations required in Big 
+Data processing engines for scientific computing. 
 
 Scientific applications differ from the typical Big Data use 
 cases, which might explain the remaining gap between Big Data and 
@@ -144,9 +141,6 @@ Section~\ref{sec:methods}. Section~\ref{sec:results} presents our
 results which we discuss in Section~\ref{sec:discussion}. 
 Section~\ref{sec:conclusion} concludes on the answer to our two research questions.
 
-
-\newpage % Remove this when abstract is written
-
 \section{Materials and Methods} % 4 pages
 \label{sec:methods}
 
@@ -164,7 +158,7 @@ which it achieves through its principle abstraction, the Resilient Distributed
 Dataset (RDD). 
 
 An RDD is an immutable parallel data structure that achieve fault-tolerance 
-through the concept of lineage~\cite{RDDpaper}. Rather than permitting
+through the concept of lineage~\cite{zaharia2010spark}. Rather than permitting
 fine-grained transformations, only coarse-grained transformations (applying to
 many elements in the RDD), can be applied, thereby making it simple to keep a 
 log of how the data was modified. This log, known as the lineage, is used
@@ -175,7 +169,7 @@ transformations and actions. Applying a transformation to an RDD produces a new,
 child, RDD through a narrow or wide dependency. A narrow dependency signifies 
 that the child is only dependent on a single parent partition, whereas a child 
 RDD is dependent on all parent partitions in a wide dependency. Examples of 
-spark transformations include map, filter and join. To materialize an RDD, an
+Spark transformations include map, filter and join. To materialize an RDD, an
 action must be performed, such as a reduce or a collect.
 
 All actions and wide dependencies require a shuffle -- Spark's most costly
@@ -183,36 +177,36 @@ operation. Every shuffle begins with each map task saving its data to local
 files to be fetched by the shuffle operation. The shuffle operation then 
 redistributes the data across the partitions as requested. A shuffle marks a 
 stage boundary in Spark. In other words, a shuffle will not begin until all 
-dependent map tasks have completed.
+dependent map tasks \todo{shouldn't it be 'actions'?} have completed.
 
 Spark will spill RDD data to disk whenever the complete dataset does not fit in
 memory. Moreover, as Spark transformations generate new RDDs and numerous 
 transformations may occur in a single application, Spark implements a LRU eviction
-policy. If an evicted RDD needs to be reused, Spark will recomputed it using the
+policy. If an evicted RDD needs to be reused, Spark will recompute it using the
 lineage data collected. It therefore becomes of great importance to persist to
 memory and/or 
 disk RDDs which will be reused throughout the application, particularly if the
 recomputation is costly. 
 %mention results in thunder paper
 
-Data locality in Spark is achieved through the  scheduling task to partitions which have the
-data loaded in memory. If the data is instead stored on HDFS, the scheduler will
+Data locality in Spark is achieved through the  scheduling of task to partitions which have the
+data loaded in memory. If the data is instead stored on HDFS\todo{expand acronym if not done in intro}, the scheduler will
 assign it to one of the preferred locations specified by HDFS. Spark's scheduler
-utilizes delay scheduling to ensure optimal fairness and locality for all tasks.
+utilizes delay scheduling to optimize fairness and locality for all tasks.
 %improve paragraph
 
 Three different types of schedulers are compatible with Spark: 1) Spark 
-Standalone, 2) YARN~\cite{yarn} and 3) Mesos~\cite{mesos}. The Spark Standalone
-scheduler is the default scheduler. YARN was a scheduler designed for Hadoop~\cite{hadoop}
+Standalone, 2) YARN~\cite{vavilapalli2013apache} and 3) Mesos~\cite{hindman2011mesos}. The Spark Standalone
+scheduler is the default scheduler. YARN was a scheduler designed for Hadoop~\cite{white2012hadoop}
 clusters. It is prepackaged with Hadoop installations. In contrast to YARN, 
 Mesos was designed to be used in multitenant cluster environments. In our experiments,
-we focus on the Spark Standalone cluster.
+we focus on the Spark Standalone cluster. \todo{Maybe defer this to experiments}
 
 Executing Spark applications on HPC systems with Spark-unaware schedulers may
 be inefficient. The amount of resources requested by Spark may impede Spark-cluster
 scheduling time. Using pilot-scheduling strategies to add nodes to the Spark cluster
 as they are allocated by the underlying schedulers may speedup allocation and 
-overall processing time. This, however, is not studied in the current paper.
+overall processing time. This, however, is not studied in the current paper. \todo{Explain why}
 
 As Spark is frequently used by the scientific community, we designed our 
 experiments using the PySpark API. This is at a cost to performance as the PySpark
@@ -243,25 +237,25 @@ Nipype is a popular Python neuroimaging processing engine. It aims at being a
 solution for easily creating reproducible neuroimaging workflows. Although Nipype
 does not employ any Big Data processing strategies, it provides access to numerous
 plugins to schedulers found in most clusters readily available to researchers, 
-such as SGE, PBS, SLURM and HTCondor. It also includes its own scheduler, MultiProc,
+such as SGE, PBS, SLURM and HTCondor\todo{expand acronyms}. It also includes its own scheduler, MultiProc,
 for parallel processing on single nodes. Nipype also includes many built-in 
 interfaces to commonly used neuroimaging tools to be incorporated within the 
 workflows. Nipype's ability to easily parallelize workflows in researcher-available 
-cluster setups, capture detailed provenance information necessary for reproducibility
-and allow users to easily integrate existing neuroimaging tools, make it preferable
+cluster setups, capture detailed provenance information necessary for reproducibility,
+and allow users to easily integrate existing neuroimaging tools, make it preferable\todo{not the right word and sentence is difficult to parse.}
 to existing Big Data solutions, which would necessitate modification to achieve this.
 
 Jobs, or Interfaces, in Nipype, are encapsulated by a Node. A Node dictates that
-the job will execute on a single input. However, there are exists the MapNode, 
-a child variant of the Node, which can execute on multiple inputs. All tasks in
-Nipype execute in their own uniquely named subdirectory which enables the provenance 
+the job will execute on a single input. However, the MapNode, 
+a child variant of the Node, can execute on multiple inputs. All tasks in
+Nipype execute in their own uniquely named subdirectory which facilitates the provenance 
 tracking of inputs and outputs. This also enables checkpointing of the workflow.
 In the case of Node failure or application modification, only the nodes who have
 been modified (verified by hash) are re-executed.
 
 In order for Nipype to operate as intended, a filesystem shared by all the nodes 
 is required. However, it is still possible to save to a non-shared local filesystem, 
-but it may come at the expense of fault-tolerance. Moreover, the user will need to
+but it may come at the expense of fault-tolerance \todo{explain why}. Moreover, the user will need to
 ensure that the files are appropriately directed to the nodes that require them as
 there is no guarantee of data locality in Nipype.
 
