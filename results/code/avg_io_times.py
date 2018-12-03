@@ -100,7 +100,7 @@ for bench_f in listdir(sys.argv[1]):
 #plt.boxplot([read_bandwidths['tmpfs'], read_bandwidths['local'],
 #             read_bandwidths['lustre']], 0, 'b,')
 
-fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(13, 5))
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(13, 5), sharey=True)
 axes[0].violinplot([npr_bandwidths['tmpfs'], npr_bandwidths['local'],
                  npr_bandwidths['lustre']], showmeans=False, 
                  showmedians=True)
@@ -114,8 +114,6 @@ axes[1].set_title('Spark')
 for ax in axes:
     ax.set_xlabel('Filesystem')
     ax.set_ylabel('Bandwidth (MB/s)')
-
-plt.xticks([1, 2, 3], ['tmpfs', 'local', 'lustre'])
 
 plt.setp(axes, xticks=[1, 2, 3],
          xticklabels=['tmpfs', 'local', 'lustre'])
@@ -137,8 +135,6 @@ axes[1].set_title('Spark')
 for ax in axes:
     ax.set_xlabel('Filesystem')
     ax.set_ylabel('Bandwidth (MB/s)')
-
-plt.xticks([1, 2, 3], ['tmpfs', 'local', 'lustre'])
 
 plt.setp(axes, xticks=[1, 2, 3],
          xticklabels=['tmpfs', 'local', 'lustre'])
