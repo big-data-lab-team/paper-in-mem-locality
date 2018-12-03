@@ -239,6 +239,33 @@ code must undergo Python to Java serialization.
 
 \subsubsection{Nipype}
 
+Nipype is a popular Python neuroimaging processing engine. It aims at being a 
+solution for easily creating reproducible neuroimaging workflows. Although Nipype
+does not employ any Big Data processing strategies, it provides access to numerous
+plugins to schedulers found in most clusters readily available to researchers, 
+such as SGE, PBS, SLURM and HTCondor. It also includes its own scheduler, MultiProc,
+for parallel processing on single nodes. Nipype also includes many built-in 
+interfaces to commonly used neuroimaging tools to be incorporated within the 
+workflows. Nipype's ability to easily parallelize workflows in researcher-available 
+cluster setups, capture detailed provenance information necessary for reproducibility
+and allow users to easily integrate existing neuroimaging tools, make it preferable
+to existing Big Data solutions, which would necessitate modification to achieve this.
+
+Jobs, or Interfaces, in Nipype, are encapsulated by a Node. A Node dictates that
+the job will execute on a single input. However, there are exists the MapNode, 
+a child variant of the Node, which can execute on multiple inputs. All tasks in
+Nipype execute in their own uniquely named subdirectory which enables the provenance 
+tracking of inputs and outputs. This also enables checkpointing of the workflow.
+In the case of Node failure or application modification, only the nodes who have
+been modified (verified by hash) are re-executed.
+
+In order for Nipype to operate as intended, a filesystem shared by all the nodes 
+is required. However, it is still possible to save to a non-shared local filesystem, 
+but it may come at the expense of fault-tolerance. Moreover, the user will need to
+ensure that the files are appropriately directed to the nodes that require them as
+there is no guarantee of data locality in Nipype.
+
+
 % pipeline description: map nodes and their limitations
 % general description relevant to the experiment
 % two plugins
@@ -529,7 +556,9 @@ specific instrumentation in Nipype.
 \subsection{CPU Time}
 % Comment on the general trend
 % We can't really say that imaging tasks are not small. Even Freesurfer could be decomposed.
-% 
+%
+
+
 
 \subsection{Image Block size}
 % Comment on the general trend
