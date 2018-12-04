@@ -74,18 +74,20 @@ def get_nearest_centroid(img, centroids):
 def reduceFilesByCentroid(centroid, assignments):
     from json import load, dump
     from collections import Counter
-    from os.path import basename, abspath
+    from os.path import basename, abspath, isfile
 
     try:
         a_files = [t[1] for l in assignments for t in l if t[0] == centroid[0]]
+
     except Exception as e:
         a_files = [l[1] for l in assignments if l[0] == centroid[0]]
 
     c_assignments = Counter({})
     for fn in a_files:
-        with open(fn, 'r') as f:
-            partial_a = Counter(load(f))
-            c_assignments = c_assignments + partial_a
+        if isfile(fn):
+            with open(fn, 'r') as f:
+                partial_a = Counter(load(f))
+                c_assignments = c_assignments + partial_a
 
     out_name = 'centroid-{}.json'.format(centroid[0]) 
     with open(out_name, 'a+') as f:
@@ -108,6 +110,7 @@ def nearest_centroid_wf(partition, centroids, work_dir, benchmark_dir=None,
     except Exception as e:
         from thread import get_ident
 
+    tmpfs = None
     start = time()
 
     exec_id = uuid.uuid1()
@@ -259,7 +262,6 @@ def classify_chunks(img, assignments, benchmark_dir=None):
     from numpy import where, isin
 
     # assume all assignment files fit in memory
-    a_files = [t for l in assignments for t in l]
     i = nib.load(img)
     data = i.get_data()
     shape = i.shape
@@ -267,7 +269,7 @@ def classify_chunks(img, assignments, benchmark_dir=None):
     a = {}
 
     # should only be one file per centroid
-    for t in a_files:
+    for t in assignments:
         with open(t[1], 'r') as f:
             a[t[0]] = [k for k in load(f)]
 
@@ -423,7 +425,7 @@ def main():
                            function=save_classified_wf),
                   name='scf_{}'.format(c_idx))
         cc.inputs.partition = partition
-        cc.inputs.assignments = (result_dict[gc_nname].result
+        cc.inputs.assignments = (result_dict[gr_nname].result
                                  .outputs
                                  .assignment_files)
         cc.inputs.work_dir = work_dir
