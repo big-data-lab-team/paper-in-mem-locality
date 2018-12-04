@@ -167,7 +167,7 @@ def main():
     print("***FINAL CENTROIDS***:", count, centroids)
     print(results)
 
-    end = time()
+    end = time() - start
 
 
     if args.benchmark:
