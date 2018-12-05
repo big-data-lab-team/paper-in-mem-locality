@@ -275,7 +275,7 @@ def classify_chunks(img, assignments, out_dir, benchmark_dir=None):
         data[where(isin(data, a[k]))] = k
 
     i_out = nib.Nifti1Image(data, i.affine)
-    i_name = op.join(out_dir, op.basename(img))
+    i_name = op.join(out_dir, 'classified-{}'.format(op.basename(img)))
     nib.save(i_out, i_name)
 
     return op.abspath(i_name)
@@ -331,14 +331,15 @@ def main():
 
     work_dir = os.path.join(os.getcwd(), 'np_km_work')
 
+    f_per_n = ceil(len(bb_files) / args.nodes)
+    file_partitions = [bb_files[x:x+f_per_n] for x in range(
+                                                      0,
+                                                      len(bb_files),
+                                                      f_per_n)]
+
     while c_changed and idx < args.iters:
         wf = Workflow('km_bb1_slurm_{}'.format(idx))
         wf.base_dir = work_dir
-        f_per_n = ceil(len(bb_files) / args.nodes)
-        file_partitions = [bb_files[x:x+f_per_n] for x in range(
-                                                          0,
-                                                          len(bb_files),
-                                                          f_per_n)]
 
         gc_nname = 'gc_slurm_part{}'.format(idx)
         pidx = 0
@@ -346,7 +347,7 @@ def main():
 
             gc_nname_it = '{0}-{1}'.format(gc_nname, pidx)
             gc = Node(Function(input_names=['partition', 'centroids',
-                                               'work_dir', 'benchmark_dir'],
+                                            'work_dir', 'benchmark_dir'],
                                   output_names=['assignment_files'],
                                   function=nearest_centroid_wf),
                          name=gc_nname_it)
@@ -380,7 +381,7 @@ def main():
         wf = Workflow('km_bb2_slurm_{}'.format(idx))
         wf.base_dir = work_dir
         for c in centroids:
-            gr_nname_it = '{0}-{1}'.format(gr_nname, int(c[0]))
+            gr_nname_it = '{0}-{1}'.format(gr_nname, c[0])
             gr = Node(Function(input_names=['centroid', 'assignments'],
                                output_names=['assignment_files'],
                                function=reduceFilesByCentroid),
@@ -390,7 +391,7 @@ def main():
 
             wf.add_nodes([gr])
 
-            uc_nname_it = '{0}-{1}'.format(uc_nname, int(c[0])) 
+            uc_nname_it = '{0}-{1}'.format(uc_nname, c[0]) 
             uc = Node(Function(input_names=['centroid', 'assignments'],
                                output_names=['updated_centroid'],
                                function=update_centroids),
@@ -410,14 +411,12 @@ def main():
         node_names = [i.name for i in wf_out.nodes()]
         result_dict = dict(zip(node_names, wf_out.nodes()))
 
-        new_centroids = []
+        new_centroids = ([result_dict['{0}-{1}'.format(uc_nname, c[0])]
+                                    .result
+                                    .outputs
+                                    .updated_centroid
+                          for c in centroids])
 
-        for c in centroids:
-            uc_nname_it = '{0}-{1}'.format(uc_nname, int(c[0])) 
-            new_centroids.append(result_dict[uc_nname_it].result
-                                                         .outputs
-                                                         .updated_centroid)
-        print(new_centroids)
         old_centroids = set(centroids)
         diff = [x for x in new_centroids if x not in old_centroids]
         c_changed = bool(diff)
@@ -435,12 +434,11 @@ def main():
     res_wf.base_dir = work_dir 
     c_idx = 0
 
-    assignments = []
-    for c in centroids:
-        gr_nname_it = '{0}-{1}'.format(gr_nname, int(c[0])) 
-        assignments.append(result_dict[gr_nname_it].result
-                                                   .outputs
-                                                   .assignment_files)
+    assignments = ([result_dict['{0}-{1}'.format(gr_nname, c[0])]
+                               .result
+                               .outputs
+                               .assignment_files
+                    for c in centroids])
 
     for partition in file_partitions:
         cc = Node(Function(input_names=['partition', 'assignments',
