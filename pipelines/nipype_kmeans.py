@@ -110,7 +110,6 @@ def nearest_centroid_wf(partition, centroids, work_dir, benchmark_dir=None,
     except Exception as e:
         from thread import get_ident
 
-    tmpfs = None
     start = time()
 
     exec_id = uuid.uuid1()
@@ -120,24 +119,31 @@ def nearest_centroid_wf(partition, centroids, work_dir, benchmark_dir=None,
                    else work_dir)
 
     gc_nname = 'gc'
-    gc = MapNode(Function(input_names=['img', 'centroids'],
-                          output_names=['assignment_files'],
-                          function=nk.get_nearest_centroid),
-                 name=gc_nname,
-                 iterfield=['img'])
+    idx = 0
 
-    gc.inputs.img = partition
-    gc.inputs.centroids = centroids
+    for chunk in partition:
+        gc_nname_it = '{0}-{1}'.format(gc_nname, idx)
+        gc = Node(Function(input_names=['img', 'centroids'],
+                           output_names=['assignment_files'],
+                           function=nk.get_nearest_centroid),
+                  name=gc_nname_it)
 
-    wf.add_nodes([gc])
+        gc.inputs.img = chunk
+        gc.inputs.centroids = centroids
+
+        wf.add_nodes([gc])
+        idx += 1
+
     wf_out = wf.run('MultiProc')
 
     node_names = [i.name for i in wf_out.nodes()]
     result_dict = dict(zip(node_names, wf_out.nodes()))
 
-    assignments = (result_dict[gc_nname].result
-                                        .outputs
-                                        .assignment_files)
+    assignments = ([result_dict['{0}-{1}'.format(gc_nname, i)]
+                                         .result
+                                         .outputs
+                                         .assignment_files
+                    for i in range(0, len(partition))])
 
     assignments = [t for l in assignments for t in l]
 
@@ -145,24 +151,28 @@ def nearest_centroid_wf(partition, centroids, work_dir, benchmark_dir=None,
     wf.base_dir = work_dir
 
     lr_nname = 'lr'
-    lr = MapNode(Function(input_names=['centroid', 'assignments'],
-                          output_names=['assignment_files'],
-                          function=nk.reduceFilesByCentroid),
-                 name=lr_nname,
-                 iterfield=['centroid'])
-    lr.inputs.centroid = centroids
-    lr.inputs.assignments = assignments
 
-    wf.add_nodes([lr])
+    for c in centroids:
+        lr_nname_it = '{0}-{1}'.format(lr_nname, c[0])
+        lr = Node(Function(input_names=['centroid', 'assignments'],
+                              output_names=['assignment_files'],
+                              function=nk.reduceFilesByCentroid),
+                     name=lr_nname_it)
+        lr.inputs.centroid = c
+        lr.inputs.assignments = assignments
+
+        wf.add_nodes([lr])
 
     wf_out = wf.run('MultiProc')
 
     node_names = [i.name for i in wf_out.nodes()]
     result_dict = dict(zip(node_names, wf_out.nodes()))
 
-    assignments = (result_dict[lr_nname].result
-                                        .outputs
-                                        .assignment_files)
+    assignments = ([result_dict['{0}-{1}'.format(lr_nname, c[0])]
+                                         .result
+                                         .outputs
+                                         .assignment_files
+                    for c in centroids])
 
     end = time()
 
@@ -190,23 +200,15 @@ def save_classified_wf(partition, assignments, work_dir, output_dir,
     res_wf.base_dir = work_dir
     c_idx = 0
     for chunk in partition:
-        cc = Node(Function(input_names=['img', 'assignments'],
+        cc = Node(Function(input_names=['img', 'assignments', 'out_dir'],
                            output_names=['out_file'],
                            function=nk.classify_chunks),
                   name='{0}cc_{1}'.format(iteration, c_idx))
 
         cc.inputs.img = chunk
         cc.inputs.assignments = assignments 
+        cc.inputs.out_dir = output_dir
         res_wf.add_nodes([cc])
-
-        sc = Node(Function(input_names=['img', 'output_dir'],
-                           output_names=['out_file'],
-                           function=nk.save_classified),
-                  name='{0}sc_{1}'.format(iteration, c_idx))
-
-        sc.inputs.output_dir = output_dir
-
-        res_wf.connect([(cc, sc, [('out_file', 'img')])])
 
         c_idx += 1
 
@@ -230,17 +232,13 @@ def update_centroids(centroid, assignments, benchmark_dir=None):
     except Exception as e:
         from thread import get_ident
 
-    a_files = [l[1] for l in assignments if l[0] == centroid[0]]
-
     sum_elements = 0
     num_elements = 0
 
-    for fn in a_files:
-        print(fn)
-        with open(fn, 'r') as f:
-            elements = load(f)
-            sum_elements += sum([float(i) * elements[i] for i in elements])
-            num_elements += sum([elements[i] for i in elements])
+    with open(assignments[1], 'r') as f:
+        elements = load(f)
+        sum_elements += sum([float(i) * elements[i] for i in elements])
+        num_elements += sum([elements[i] for i in elements])
 
     end = time()
 
@@ -254,7 +252,7 @@ def update_centroids(centroid, assignments, benchmark_dir=None):
         return (centroid[0], sum_elements/num_elements)
 
 
-def classify_chunks(img, assignments, benchmark_dir=None):
+def classify_chunks(img, assignments, out_dir, benchmark_dir=None):
     import nibabel as nib
     import pickle
     from json import load
@@ -277,21 +275,10 @@ def classify_chunks(img, assignments, benchmark_dir=None):
         data[where(isin(data, a[k]))] = k
 
     i_out = nib.Nifti1Image(data, i.affine)
-    i_name = op.basename(img)
+    i_name = op.join(out_dir, op.basename(img))
     nib.save(i_out, i_name)
 
     return op.abspath(i_name)
-
-
-def save_classified(img, output_dir):
-    import shutil
-    from os import path as op
-
-    out_name = 'classified-{}'.format(op.basename(img))
-
-    out_file = op.join(output_dir, out_name)
-
-    return shutil.copy(img, out_file)
 
 
 def main():
@@ -341,9 +328,11 @@ def main():
 
     idx = 0
     result_dict = {}
-    work_dir = os.getcwd()
+
+    work_dir = os.path.join(os.getcwd(), 'np_km_work')
+
     while c_changed and idx < args.iters:
-        wf = Workflow('km_bb_slurm_{}'.format(idx))
+        wf = Workflow('km_bb1_slurm_{}'.format(idx))
         wf.base_dir = work_dir
         f_per_n = ceil(len(bb_files) / args.nodes)
         file_partitions = [bb_files[x:x+f_per_n] for x in range(
@@ -352,40 +341,64 @@ def main():
                                                           f_per_n)]
 
         gc_nname = 'gc_slurm_part{}'.format(idx)
-        gc = MapNode(Function(input_names=['partition', 'centroids',
-                                           'work_dir', 'benchmark_dir'],
-                              output_names=['assignment_files'],
-                              function=nearest_centroid_wf),
-                     name=gc_nname,
-                     iterfield=['partition'])
+        pidx = 0
+        for fp in file_partitions:
 
-        gc.inputs.partition = file_partitions
-        gc.inputs.centroids = centroids
-        gc.inputs.work_dir = work_dir
-        gc.inputs.benchmark_dir = benchmark_dir
+            gc_nname_it = '{0}-{1}'.format(gc_nname, pidx)
+            gc = Node(Function(input_names=['partition', 'centroids',
+                                               'work_dir', 'benchmark_dir'],
+                                  output_names=['assignment_files'],
+                                  function=nearest_centroid_wf),
+                         name=gc_nname_it)
 
-        wf.add_nodes([gc])
+            gc.inputs.partition = fp
+            gc.inputs.centroids = centroids
+            gc.inputs.work_dir = work_dir
+            gc.inputs.benchmark_dir = benchmark_dir
+
+            wf.add_nodes([gc])
+            pidx += 1
+
+        if args.plugin_args is not None:
+            wf_out = wf.run(plugin='SLURM',
+                            plugin_args={'template': args.plugin_args})
+        else:
+            wf_out = wf.run(plugin='SLURM')
+
+        # Convert to dictionary to more easily extract results
+        node_names = [i.name for i in wf_out.nodes()]
+        result_dict = dict(zip(node_names, wf_out.nodes()))
+        assignments = ([result_dict['{0}-{1}'.format(gc_nname, i)]
+                               .result
+                               .outputs
+                               .assignment_files 
+                       for i in range(0, len(file_partitions))])
 
         gr_nname = 'gr_{}'.format(idx)
-        gr = MapNode(Function(input_names=['centroid', 'assignments'],
-                              output_names=['assignment_files'],
-                              function=reduceFilesByCentroid),
-                     name=gr_nname,
-                     iterfield=['centroid'])
-        gr.inputs.centroid = centroids
-
-        wf.connect([(gc, gr, [('assignment_files', 'assignments')])])
-
         uc_nname = 'uc_{}'.format(idx)
-        uc = MapNode(Function(input_names=['centroid', 'assignments'],
-                              output_names=['updated_centroids'],
-                              function=update_centroids),
-                     name=uc_nname,
-                     iterfield=['centroid'])
 
-        uc.inputs.centroid = centroids
+        wf = Workflow('km_bb2_slurm_{}'.format(idx))
+        wf.base_dir = work_dir
+        for c in centroids:
+            gr_nname_it = '{0}-{1}'.format(gr_nname, int(c[0]))
+            gr = Node(Function(input_names=['centroid', 'assignments'],
+                               output_names=['assignment_files'],
+                               function=reduceFilesByCentroid),
+                      name=gr_nname_it)
+            gr.inputs.centroid = c
+            gr.inputs.assignments = assignments
 
-        wf.connect([(gr, uc, [('assignment_files', 'assignments')])])
+            wf.add_nodes([gr])
+
+            uc_nname_it = '{0}-{1}'.format(uc_nname, int(c[0])) 
+            uc = Node(Function(input_names=['centroid', 'assignments'],
+                               output_names=['updated_centroid'],
+                               function=update_centroids),
+                      name=uc_nname_it)
+
+            uc.inputs.centroid = c
+
+            wf.connect([(gr, uc, [('assignment_files', 'assignments')])])
 
         if args.plugin_args is not None:
             wf_out = wf.run(plugin='SLURM',
@@ -397,9 +410,13 @@ def main():
         node_names = [i.name for i in wf_out.nodes()]
         result_dict = dict(zip(node_names, wf_out.nodes()))
 
-        new_centroids = (result_dict[uc_nname].result
-                                              .outputs
-                                              .updated_centroids)
+        new_centroids = []
+
+        for c in centroids:
+            uc_nname_it = '{0}-{1}'.format(uc_nname, int(c[0])) 
+            new_centroids.append(result_dict[uc_nname_it].result
+                                                         .outputs
+                                                         .updated_centroid)
         print(new_centroids)
         old_centroids = set(centroids)
         diff = [x for x in new_centroids if x not in old_centroids]
@@ -417,6 +434,14 @@ def main():
     res_wf = Workflow('km_classify_slurm')
     res_wf.base_dir = work_dir 
     c_idx = 0
+
+    assignments = []
+    for c in centroids:
+        gr_nname_it = '{0}-{1}'.format(gr_nname, int(c[0])) 
+        assignments.append(result_dict[gr_nname_it].result
+                                                   .outputs
+                                                   .assignment_files)
+
     for partition in file_partitions:
         cc = Node(Function(input_names=['partition', 'assignments',
                                         'work_dir', 'output_dir',
@@ -425,9 +450,7 @@ def main():
                            function=save_classified_wf),
                   name='scf_{}'.format(c_idx))
         cc.inputs.partition = partition
-        cc.inputs.assignments = (result_dict[gr_nname].result
-                                 .outputs
-                                 .assignment_files)
+        cc.inputs.assignments = assignments
         cc.inputs.work_dir = work_dir
         cc.inputs.output_dir = output_dir
         cc.inputs.iteration = c_idx
