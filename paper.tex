@@ -5,6 +5,10 @@
 \usepackage{colortbl} % for \rowcolor
 
 \usepackage[bookmarks=false]{hyperref}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\algnewcommand\algorithmicforeach{\textbf{for each}}
+\algdef{S}[FOR]{ForEach}[1]{\algorithmicforeach\ #1\ \algorithmicdo}
 
 \newcommand{\todo}[1]{\marginpar{\parbox{18mm}{\flushleft\tiny\color{red}\textbf{TODO}:
       #1}}}
@@ -527,16 +531,33 @@ it into 125 chunks, it was necessary to zero-pad the image to the dimensions
 165X200X200 voxels, which subsequently increased the total image size to 13M.
 
 \subsubsection{Applications} % 1 page
+\begin{algorithm}\caption{Incrementation}\label{alg:incrementation}
+    \begin{algorithmic}
+    \Require $x$, a sleep delay in float
+    \Require $fs$, filesystem to save image to (i.e. mem, tmpfs, local disk, lustre). 
+    \ForEach{$i \in iterations$}
+    \ForEach{$chunk \in image$}
+        \State $chunk\gets chunk+1$
+        \State sleep $x$
+        \State save $chunk$ to $fs$
+    \EndFor
+    \EndFor
+\end{algorithmic}
+\end{algorithm}
 
 % Incrementation (avoid cache effects in binarization)
 In order to investigate how the different strategies impact processing, we 
-selected a simple incrementation pipeline that consisted exclusively of map 
-stages. To would allow us to create experiments to tweak data locality, 
-in-memory computing and lazy evaluation easily. Incrementation was selected 
+selected a simple incrementation pipeline (Algorithm~\ref{alg:incrementation}) 
+that consisted exclusively of map 
+stages. A series of map-only stages would enable us to evaluate the effects of
+in-memory computing when data locality is preserved. Incrementation was 
+selected 
 over other applications, such as binarization, as it ensured that a new image
 was created at each step (i.e. no caching effects within the executing 
 application). Each partitioned chunk was incremented by 1, in parallel, by
-the processing engines. The incremented chunks would be either 
+the processing engines. As incrementing the images is a relatively quick 
+process, we added a sleep delay to the incrementation stage in order to 
+increase task duration. The incremented chunks would be either 
 maintained in-memory (Spark only) or saved to either tmpfs, local disk or 
 Lustre (Spark and Nipype). Should more than a single iteration be requested, 
 the increment chunks would be incremented again and saved to the same storage. 
@@ -548,11 +569,11 @@ local storage, if
 available, is generally temporary and only available for the duration of the 
 allocation. 
 
-For our first and second experiment\todo{better split into two paragraphs}, we wanted to determine the effects of in-memory 
-processing on increasing data size and task duration. In other words, the 125 
-chunk BigBrain 
-image was increment 1, 10 and 100 times, such that the total processed data 
-size increased from 75GB, at 1 iteration, to 7500GB at 100 iterations. In order
+For our first incrementation experiment, we investigated the effects of
+in-memory computing on varying total data size. to do this, we increased the 
+number of incrementation iterations from 1, 10 and 100 times. The total data 
+size would then increased from 75GB, at 1 iteration, to 7500GB, at 100 
+iterations. In order
 to validate the model, the D/C was varied to fall in different regions of 
 Equation~\ref{eq:page-cache-inequality}. The D/C selected were 256, 178.6, 80 
 and 1.9MB/s\todo{present this as a table?}. 80 and 1.9MB/s satisfied the 
@@ -560,6 +581,15 @@ inequality for local disk, whereas only 1.9MB/s satisfied the inequality for
 Lustre. These D/C ratios were applied to each iteration experiment, such that 
 we were able to get both the effect of increasing the total amount of data, in 
 addition to, increasing the task duration for a given data size.
+
+We combined the first experiment with our second experiment such the we could 
+evaluate the effects of in-memory computing on varying task duration. If the 
+page cache has sufficient time to flush, it should be expected that using 
+in-memory computing should have no increased speed-up over disk. We maintained 
+the D/C ratios as those mentioned above, but rather than applying only one to
+a different number of iterations, we applied all four D/C to all numbers of 
+iterations. That is 1 iteration, 10 iterations and 100 iterations were all 
+processed with using the aforementioned D/C ratios.
 
 As a third incrementation experiment, we were interested in the effects of 
 chunk size on in-memory computing. Naturally, greater chunk size signifies 
@@ -584,10 +614,18 @@ of the strategies on different image sizes. We selected the 75GB BigBrain, the
 38GB half BigBrain and the 13M T1W MRI image for this experiment. The number of
 chunks was fixed at 125. Similarly to the previous experiment, the total 
 sequential compute time was fixed, however, due to varying size in total data 
-processed, the D/C ratio varied. Once again, we ensure that the D/C ratio fell
-in multiple different regions of the inequality.
+processed, the D/C ratio varied. Once again, we ensured that the D/C ratio fell
+in multiple different regions of the inequality. The D/C ratio ranged from 
+348.8 MB/s for BigBrain and 174.4MB/s for half Bigbrain, to 0.1MB/s for the MRI 
+image. Only the 0.1MB/s MRI satisfied the inequality for both Lustre and local 
+disk.
 
-
+Since data-locality is not normally preserved in Nipype (a new SLURM allocation 
+is requested for each processed task), we instrumented Nipype to ensure data 
+locality. That is, for each chunk partition, we requested a SLURM allocation to
+process the entire pipeline in parallel, using Nipype's MultiProc scheduler, on 
+a given node. This was possible as no communication was required between the 
+processed chunks.
 
 
 
