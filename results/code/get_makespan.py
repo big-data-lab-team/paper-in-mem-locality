@@ -28,8 +28,11 @@ for bench in os.listdir(sys.argv[1]):
 
     else:
         with open(os.path.join(sys.argv[1], bench), 'r') as f:
-            driver_line = f.readline().split(" ")
-            driver_line[0] = os.path.basename(bench) + ":" + driver_line[0]
+            for line in f:
+                if 'driver_program' in line:
+                    driver_line = line.split(" ")
+                    break
+            driver_line[0] = (os.path.basename(bench) + ":" + driver_line[0])
             
 
     with open(sys.argv[2], 'a') as f:
