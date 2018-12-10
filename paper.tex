@@ -64,14 +64,15 @@ Data processing engines for scientific computing.
 
 Scientific applications differ from the typical Big Data use 
 cases, which might explain the remaining gap between Big Data and 
-scientific engines. While Big Data applications mostly target text 
+scientific engines. \todo{This sentence is extremely long} While Big Data applications mostly target text 
 processing (e.g. Web search, frequent pattern mining, recommender 
 systems~\cite{leskovec2014mining}), implemented in consistent software 
-libraries and running on clouds or dedicated commodity clusters with locality-aware 
-file systems such as HDFS~\cite{shvachko2010hadoop}, scientific applications 
-often involve binary data such as images and signals, processed by 
-command-line tools using a mix of programming languages (C, Fortran, 
-Python, shell scripts) and are deployed on large, shared clusters where 
+libraries and running on clouds or dedicated commodity clusters with 
+locality-aware file systems such as the Hadoop Distributed File System 
+(HDFS~\cite{shvachko2010hadoop}), scientific applications often involve 
+binary data such as images and signals, processed by command-line tools 
+using a mix of programming languages (C, Fortran, Python, shell 
+scripts), and are deployed on large, shared clusters where 
 data is fetched from data nodes to compute nodes using centralized shared file 
 systems such as Lustre~\cite{schwan2003lustre}. Such differences in 
 applications and infrastructures have important consequences. To 
@@ -85,7 +86,7 @@ currently being investigated~\cite{samba}.
 
 Technological advances of the past decade, in particular page caching 
 in the Linux kernel~\cite{love2010linux}, in-memory file systems 
-(\texttt{tmpfs}) and memory-mapped files\todo{check that} might also 
+(tmpfs) and memory-mapped files\todo{check that} might also 
 explain the lack of adoption of Big Data engines for scientific 
 applications.
 In-memory computing would then be a feature provided by 
@@ -100,7 +101,8 @@ generalized rise of data volumes in science, due to the joint increase
 of image resolution and subject cohort sizes~\cite{van2014human}. 
 Processing engines have been developed with neuroinformatics 
 applications in mind, for instance Nipype~\cite{gorgolewski2011nipype} 
-or PSOM~\cite{bellec2012pipeline}. Big Data engines have been used for 
+or the Pipeline System for Octave and Matlab 
+(PSOM~\cite{bellec2012pipeline}). Big Data engines have been used for 
 neuroimaging applications too, including in the Thunder 
 project~\cite{freeman2014mapping} and in more specific works such 
 as~\cite{makkie2019fast}. However, no quantitative performance 
@@ -109,7 +111,7 @@ added-value of Big Data engines compared to traditional processing engines.
 
 This paper addresses the following questions:
 \begin{enumerate}
-\item What is the effect of in-memory computing and data locality on neuroimaging applications?
+\item What is the effect of in-memory computing, lazy evaluation and data locality on current neuroimaging applications?
 \item Can in-memory computing be effectively enabled by the operating system rather than the data processing engine?
 \end{enumerate}
 
@@ -122,7 +124,7 @@ formats and system tuning. We argue
 that such efforts should only be conducted if substantial performance 
 improvements are expected from in-memory computing, lazy 
 evaluation\todo{are we talking about lazy evaluation at all?} or data 
-locality. On the other hand, scientific data processing engines are 
+locality. On the other hand, neuroimaging data processing engines are 
 still being developed, and it is legitimate to wonder whether these 
 projects should just be migrated to Spark, Dask, or other Big Data 
 engines.
@@ -137,6 +139,19 @@ scheduling to computing resources, to focus on the understanding of
 data writes and movement. Task scheduling will be part of our 
 discussion though.
 
+Infrastructure-wise, we focus on the case of High-Performance Computing 
+(HPC) clusters that are typically available through University 
+facilities or national computing infrastructures such as XSEDE, Compute 
+Canada or DEISA \todo{add links}, as this is the type of platform which 
+is typically available to neuroscientists. We assume that HPC systems 
+are multi-tenant, that compute nodes are accessible through a batch 
+scheduler, and that a file system shared among the compute nodes is 
+available, for instance Lustre. We intentionally leave distributed, 
+HDFS-like file system out, as initiatives to deploy them in HPC 
+centers, for instance Hadoop on-demand~\cite{hadoop-on-demand} have not 
+become mainstream yet.
+
+
 \todo{Perhaps talk about modeling and simulation here.}
 
 Our methods, including performance models, processing engines, \todo{Make this paragraph more informative}
@@ -147,6 +162,8 @@ Section~\ref{sec:conclusion} concludes on the answer to our two research questio
 
 \section{Materials and Methods} % 4 pages
 \label{sec:methods}
+
+\todo{Maybe add an intro to this section, to outline it}
 
 \subsection{Engines} % 1.5 pages
 
@@ -185,7 +202,7 @@ dependent map tasks \todo{shouldn't it be 'actions'?} have completed.
 
 Spark will spill RDD data to disk whenever the complete dataset does not fit in
 memory. Moreover, as Spark transformations generate new RDDs and numerous 
-transformations may occur in a single application, Spark implements a LRU eviction
+transformations may occur in a single application, Spark implements a Least-Recently Used (LRU) eviction
 policy. If an evicted RDD needs to be reused, Spark will recompute it using the
 lineage data collected. It therefore becomes of great importance to persist to
 memory and/or 
@@ -194,7 +211,7 @@ recomputation is costly.
 %mention results in thunder paper
 
 Data locality in Spark is achieved through the  scheduling of task to partitions which have the
-data loaded in memory. If the data is instead stored on HDFS\todo{expand acronym if not done in intro}, the scheduler will
+data loaded in memory. If the data is instead stored on HDFS, the scheduler will
 assign it to one of the preferred locations specified by HDFS. Spark's scheduler
 utilizes delay scheduling to optimize fairness and locality for all tasks.
 %improve paragraph
@@ -204,13 +221,13 @@ Standalone, 2) YARN~\cite{vavilapalli2013apache} and 3) Mesos~\cite{hindman2011m
 scheduler is the default scheduler. YARN was a scheduler designed for Hadoop~\cite{white2012hadoop}
 clusters. It is prepackaged with Hadoop installations. In contrast to YARN, 
 Mesos was designed to be used in multitenant cluster environments. In our experiments,
-we focus on the Spark Standalone cluster. \todo{Maybe defer this to experiments}
+we focus on the Spark Standalone cluster.
 
 Executing Spark applications on HPC systems with Spark-unaware schedulers may
 be inefficient. The amount of resources requested by Spark may impede Spark-cluster
 scheduling time. Using pilot-scheduling strategies to add nodes to the Spark cluster
 as they are allocated by the underlying schedulers may speedup allocation and 
-overall processing time. This, however, is not studied in the current paper. \todo{Explain why}
+overall processing time. This, however, is not studied in the current paper.
 
 As Spark is frequently used by the scientific community, we designed our 
 experiments using the PySpark API. This is at a cost to performance as the PySpark
@@ -246,7 +263,7 @@ for parallel processing on single nodes. Nipype also includes many built-in
 interfaces to commonly used neuroimaging tools to be incorporated within the 
 workflows. Nipype's ability to easily parallelize workflows in researcher-available 
 cluster setups, capture detailed provenance information necessary for reproducibility,
-and allow users to easily integrate existing neuroimaging tools, make it preferable\todo{not the right word and sentence is difficult to parse.}
+and allow users to easily integrate existing neuroimaging tools, make it preferable
 to existing Big Data solutions, which would necessitate modification to achieve this.
 
 Jobs, or Interfaces, in Nipype, are encapsulated by a Node. A Node dictates that
@@ -275,25 +292,27 @@ there is no guarantee of data locality in Nipype.
 \subsection{Data Storage Locations}
 
 Data storage location is critical to the performance of Big Data 
-applications on HPC clusters. Data may reside in the engine memory, on 
+applications on HPC clusters.
+Data may reside in the engine memory, on 
 a file system whose content reside in virtual memory (for instance 
-\texttt{tmpfs}), on disks local to the processing node, or on a shared 
+tmpfs), on disks local to the processing node, or on a shared 
 file system. Table~\ref{table:features} summarizes the Big Data 
-strategies that can be used depending on the data location. The 
-remainder of this Section explains this Table and provides related 
-performance models.
+strategies that can be used depending on the data location. In 
+addition, lazy evaluation is available in Spark regardless of data 
+location. The remainder of this Section explains this Table and 
+provides related performance models.
 \begin{table}
 \centering
-\begin{tabular}{c|ccc}
+\begin{tabular}{c|cc}
    \rowcolor{headcolor}
-    Data Location                 & In-Memory     & Data Locality & Lazy \\
+    Data Location                 & In-Memory     & Data Locality        \\
     \rowcolor{headcolor}
-                                  & Computing     &               & Evaluation      \\
+                                  & Computing     &                     \\
                                   \hline          
-In-memory                         &   Y           & Y             & Spark               \\
-\texttt{tmpfs}                    &   Y           & Y             & Spark           \\
-Local Disk                        & Page Caching  & Y             & Spark           \\
-Shared File System                & Page Caching  & N            & Spark          
+In-memory                         &   Y           & Y                       \\
+tmpfs                             &   Y           & Y                   \\
+Local Disk                        & Page Caching  & Y                   \\
+Shared File System                & Page Caching  & N                
 % data locality is somehow present in shared fs due to page caching again.
 \end{tabular}
 \caption{Big Data strategies on a shared HPC cluster.}
@@ -302,7 +321,15 @@ Shared File System                & Page Caching  & N            & Spark
 
 \subsubsection{In-Engine-Memory and In-Memory File System} 
 
-
+ The main difference between storing the data in the engine memory, as in Spark, 
+ and simply writing to an in-memory file system, such as tmpfs, is 
+ related to what happens when the processed data fills up the available 
+ memory. In case engine memory is used, the engine has to cleanup 
+ unused data with some strategy to avoid crashes. In case an in-memory 
+ file system is used, the kernel starts swapping memory to disk, and 
+ the performance becomes that of local disk writes. In our experiments, 
+ we will explore the region  when the data consumed by the 
+ application approaches the threshold of available memory.
 
 \subsubsection{Local Disk (Page Caching)} % 0.5 page
 
@@ -323,27 +350,27 @@ single node that contains their input data.
 % there is only 1 single option to schedule a task while preserving data locality.
 
 The performance of local disk accesses is strongly dependent on the 
-page caching mechanism provided by the Linux kernel, described in great 
+page caching mechanism provided by the Linux kernel, described in    
 details in~\cite{love2010linux}. To summarize, data read from disk 
 remains cached in memory until evicted by an LRU (Least Recently Used) 
 strategy. When a process invokes the \texttt{read()} system call, the 
 kernel will return the data directly from memory if the requested data 
-lies in the page cache. Such cache hits drastically speed-up data 
+lies in the page cache, realizing a cache \emph{hit}. Cache hits drastically speed-up data 
 reads, by masking the disk latency and limited bandwidth behind a 
 memory buffer. In effect, page caching provides in-memory computing 
 transparently to the processing engine. However, page cache eviction 
 strategies currently cannot be controlled by the application 
 \todo{check that}, which prevents processing engines to anticipate 
 reads by preloading the cache. Scheduling strategies might be designed 
-to maximize cache hits though. For instance, we hypothesize that lazy 
-evaluation would result in more cache hits by scheduling data-dependent 
+to maximize cache hits though. For instance, lazy 
+evaluation could result in more cache hits by scheduling data-dependent 
 tasks on the same node.
 
 Page caching has a more dramatic effect on disk writes, reducing their 
 duration by several orders of magnitude. When a process calls the 
 \texttt{write()} system call, data is copied to a memory cache that is 
-asynchronously written to disk by flusher threads when memory shrinks, 
-``dirty" (unwritten) data grows, or a 
+asynchronously written to disk by flusher threads, when memory shrinks, when
+``dirty" (unwritten) data grows, or when a 
 process invokes the \texttt{sync()} system call. 
 This asynchronous flushing of the page cache is called 
 \emph{writeback}.
@@ -376,7 +403,7 @@ where:
 This model applies to parallel applications assuming that (1) 
 concurrent processes all write the same amount of data, (2) 
 concurrent processes all consume the same CPU time, (3) data is written 
-uniformly along task execution. Due these assumptions, all the 
+uniformly along task execution. With these assumptions, all the 
 processes will write at the same rate, which explains why the model 
 does not depend on the total number of concurrent processes in the 
 application, but only on the max number of concurrent processes 
@@ -425,35 +452,7 @@ where $\Gamma$ is the max number of concurrent jobs in the cluster.
 Note that $\frac{\Delta}{\Gamma}$ will be much lower than 
 $\frac{\delta}{\gamma}$ in Equation~\ref{eq:page-cache-inequality}.     
 
-
-% is there a page cahe when writing to a socket? there must be!
-% anyway the model is in the form of Eq 1, but now delta is the network bandwidth
-% and gamma is the total number of concurrent processes.
-% also, is lustre going to slow down network writes?
-
-%~ In any case, I think we want the following inequality to hold:
-%~ ```
-%~ D/C <= \Delta / \Gamma
-%~ ```
-%~ where Delta is now the apparent bandwidth of the file system and Gamma 
-%~ is the max number of concurrent tasks in the cluster. Whether page 
-%~ caching is used or not will affect what happens when the inequality 
-%~ holds: if page caching is here, write time will be 0, otherwise it will 
-%~ be non-zero. If the inequality doesn't hold then we have congestion and 
-%~ it's a different game: transfer times might tend to infinity and data 
-%~ loss is to be expected.
-
-
-% Say that we don't use HDFS because we focus on multi-tenant clusters and HDFS on multi-tenant clusters is difficult (refer to hadoop on demand).
-
-
-% Make a table to explain where data locality and in-memory computing are
-% available.  As a summary of the models.
-
-
-% What happens when dataset and derived data is too large for disk?
-
-In~\cite{saini2012performance} the Lustre file system is benchmarked on NASA applications. 
+% In~\cite{saini2012performance} the Lustre file system is benchmarked on NASA applications. 
 
 \subsection{Simulation} % is it included? 0.5 page
 
@@ -464,12 +463,6 @@ In~\cite{saini2012performance} the Lustre file system is benchmarked on NASA app
 
 % Talk about ~\cite{lebre2015adding} and \cite{wrench}. Most simulation toolkits have focused on task 
 %  scheduling. And https://dl.acm.org/citation.cfm?id=3041715
-
-
-\subsection{Task Scheduling}
-
-% Explain how we ensured that both engines lead to the same scheduling.
-% Talk about pilot jobs and say we don't consider them here.
 
 \subsection{Experiments} % 1.5 pages
 
@@ -482,37 +475,37 @@ had access to 16 dedicated nodes. Each compute node ran on RHEL 7.4, was
 equipped with 40 Intel Xeon Gold 6148 2.4GHz CPUs and had
 187GB of memory, 94GB of tmpfs and a Dell 120GB M.2 SATA SSD as local disk. 
 A 698TB Lustre server is accessible on each node through a 100Gb/s Infiniband
-network. The apparent bandwidth of the local disk was found to be 1480MB/S, 
-whereas Lustre's bandwidth was found to be at 401.49MB/S.
+network. The apparent bandwidth of the local disk was found to be 1480MB/s, 
+whereas Lustre's bandwidth was found to be at 401.49MB/s.
 % Dedicated Compute nodes with SLURM
 % Lustre server
 
-\begin{table}
-\centering
-\begin{tabular}{c|c}
-$\delta/\gamma$ & $\Delta/\Gamma$\\
-\hline
-164.5~MB/s         & 3.2~MB/s
-\end{tabular}
-\label{table:infrastructure}
-\caption{Bandwidth thresholds on the target cluster using 15 worker nodes and a
-         maximum of 9 CPUs on each node.}
-\end{table}
+%~ \begin{table}
+%~ \centering
+%~ \begin{tabular}{c|c}
+%~ $\delta/\gamma$ & $\Delta/\Gamma$\\
+%~ \hline
+%~ 164.5~MB/s         & 3.2~MB/s
+%~ \end{tabular}
+%~ \label{table:infrastructure}
+%~ \caption{Bandwidth thresholds on the target cluster using 15 worker nodes and a
+         %~ maximum of 9 CPUs on each node.}
+%~ \end{table}
 
 
 \subsubsection{Datasets} % 1/4 of a page (half a col)
 
 % BigBrain
 % Some BIDS dataset for fmriprep
-For our experiments, BigBrain~\cite{bigbrain} a 75GB 40$\mu$m isotropic 
+We used BigBrain~\cite{bigbrain}, a 75GB 40$\mu$m isotropic 
 histological image of a 65-year-old male's brain. The BigBrain was selected due 
 to being the only one of its kind, as there does not yet exist a 
 higher-resolution image of a human brain. Moreover, there currently exists a 
 lack of standardized tools for processing the BigBrain as a consequence 
 of its size. To examine the effects processing BigBrain has on the Big Data 
-strategies, we partitioned the full 3845X3015X3470 voxel image into 30 (5X3X2)
-chunks, 125 (5X5X5) chunks and 750 (5X15X10) chunks. Additionally, the full 
-image was also split in half (769X603X347 voxels) and the half image was 
+strategies, we partitioned the full $3845\times3015\times3470$ voxel image into 30 ($5\times3\times2$)
+chunks, 125 ($5\times5\times5$) chunks and 750 ($5\times15\times10$) chunks. Additionally, the full 
+image was also split in half ($769\times603\times347$ voxels) and the half image was 
 partitioned into 125 chunks.
 
 Processing large images are only considered to be part of the BigData problem 
@@ -528,7 +521,7 @@ wanted to determine the effects of the data management strategies on small
 data as well. For this, we selected a 12MB T1W image belonging to subject 1 of 
 the ds000001 dataset version 6 ~\cite{openneuro}. In order to be able to split 
 it into 125 chunks, it was necessary to zero-pad the image to the dimensions
-165X200X200 voxels, which subsequently increased the total image size to 13M.
+$165\times200\times200$ voxels, which subsequently increased the total image size to 13MB.
 
 \subsubsection{Applications} % 1 page
 \begin{algorithm}\caption{Incrementation}\label{alg:incrementation}
@@ -563,26 +556,28 @@ Lustre (Spark and Nipype). Should more than a single iteration be requested,
 the increment chunks would be incremented again and saved to the same storage. 
 This would repeat until the number of requested iterations had elapsed. In all 
 conditions, the first input chunks would be reads from Lustre and the final 
-output chunks would be saved to Lustre. We chose to to perform our initial 
+output chunks would be saved to Lustre. We chose to perform our initial 
 reads and final writes on Lustre as a multi-tenant clusters' compute node's 
 local storage, if 
 available, is generally temporary and only available for the duration of the 
 allocation. 
 
+\subsubsection{Setup}
+
 For our first incrementation experiment, we investigated the effects of
-in-memory computing on varying total data size. to do this, we increased the 
+in-memory computing on varying total data size. To do this, we increased the 
 number of incrementation iterations from 1, 10 and 100 times. The total data 
-size would then increased from 75GB, at 1 iteration, to 7500GB, at 100 
+size would then increase from 75GB, at 1 iteration, to 7500GB, at 100 
 iterations. In order
 to validate the model, the D/C was varied to fall in different regions of 
 Equation~\ref{eq:page-cache-inequality}. The D/C selected were 256, 178.6, 80 
-and 1.9MB/s\todo{present this as a table?}. 80 and 1.9MB/s satisfied the 
+and 1.9MB/s\todo{present this as a table? yes, I think it would be clearer (TG) but not mandatory.}. 80 and 1.9MB/s satisfied the 
 inequality for local disk, whereas only 1.9MB/s satisfied the inequality for 
 Lustre. These D/C ratios were applied to each iteration experiment, such that 
 we were able to get both the effect of increasing the total amount of data, in 
 addition to, increasing the task duration for a given data size.
 
-We combined the first experiment with our second experiment such the we could 
+We combined the first experiment with our second experiment such that we could 
 evaluate the effects of in-memory computing on varying task duration. If the 
 page cache has sufficient time to flush, it should be expected that using 
 in-memory computing should have no increased speed-up over disk. We maintained 
@@ -643,35 +638,12 @@ processed chunks.
 
 % Talk about our I/O pattern: random I/O, sequential.
 
-\begin{table}
-\centering
-\begin{tabular}{c|c}
-Application & $\frac{D}{C}$ (GB/s)\\
-\hline
-Big Brain            & [0-75] \\
-fMRI pre-processing  & [0-1.5]
-\end{tabular}
-\label{table:applications}
-\caption{Data-compute ratios for typical neuroinformatics applications}
-\end{table}
-% fMRI: about 100M in, 2GB out,2 30 min processing time to 10 hours
 
 \subsubsection{Execution modes} % perhaps find a better title, it's not informative
 
 We tuned job scheduling to balance the load among
 cluster nodes. This is the default behavior of Spark, but required
 specific instrumentation in Nipype.
-
-% separate this in (1) the concepts, put in the model sections below, 
-% (2) the implementation 'details', put in the experiments
-
-% in-memory (Spark only)
-
-% tmpfs: two extra in-memory copies. memfs could address that but we don't have it yet.
-% Spark: when just passing filenames. turns out i need to set `preservePartitioning` to True
-% local disk: write buffer issue
-
-% shared fs: Lustre
 
 
 \section{Results} % 2 pages
@@ -710,7 +682,7 @@ specific instrumentation in Nipype.
 
 % Effect of Lazy Evaluation?
 
-\subsection{Can \texttt{tmpfs} and Page Caches Emulate In-Memory Computing?}
+\subsection{Can tmpfs and Page Caches Emulate In-Memory Computing?}
 % tmpfs and local disks fill up: need cleanup.
 % Can we emulate in-memory computing using write buffers or tmpfs?
 
