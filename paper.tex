@@ -5,6 +5,10 @@
 \usepackage{colortbl} % for \rowcolor
 
 \usepackage[bookmarks=false]{hyperref}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\algnewcommand\algorithmicforeach{\textbf{for each}}
+\algdef{S}[FOR]{ForEach}[1]{\algorithmicforeach\ #1\ \algorithmicdo}
 
 \newcommand{\todo}[1]{\marginpar{\parbox{18mm}{\flushleft\tiny\color{red}\textbf{TODO}:
       #1}}}
@@ -471,6 +475,15 @@ In~\cite{saini2012performance} the Lustre file system is benchmarked on NASA app
 
 \subsubsection{Infrastructure} % 1/4 a page (half a col)
 
+All experiments were executed on the Dell Zenith cluster~\cite{dellHPC} running 
+SLURM. For the 
+Spark experiments, a Spark cluster was started atop our SLURM allocation. We
+had access to 16 dedicated nodes. Each compute node ran on RHEL 7.4, was 
+equipped with 40 Intel Xeon Gold 6148 2.4GHz CPUs and had
+187GB of memory, 94GB of tmpfs and a Dell 120GB M.2 SATA SSD as local disk. 
+A 698TB Lustre server is accessible on each node through a 100Gb/s Infiniband
+network. The apparent bandwidth of the local disk was found to be 1480MB/S, 
+whereas Lustre's bandwidth was found to be at 401.49MB/S.
 % Dedicated Compute nodes with SLURM
 % Lustre server
 
@@ -479,10 +492,11 @@ In~\cite{saini2012performance} the Lustre file system is benchmarked on NASA app
 \begin{tabular}{c|c}
 $\delta/\gamma$ & $\Delta/\Gamma$\\
 \hline
-50~MB/s         & 5~MB/s
+164.5~MB/s         & 3.2~MB/s
 \end{tabular}
 \label{table:infrastructure}
-\caption{Bandwidth thresholds on the target cluster}
+\caption{Bandwidth thresholds on the target cluster using 15 worker nodes and a
+         maximum of 9 CPUs on each node.}
 \end{table}
 
 
@@ -490,10 +504,130 @@ $\delta/\gamma$ & $\Delta/\Gamma$\\
 
 % BigBrain
 % Some BIDS dataset for fmriprep
+For our experiments, BigBrain~\cite{bigbrain} a 75GB 40$\mu$m isotropic 
+histological image of a 65-year-old male's brain. The BigBrain was selected due 
+to being the only one of its kind, as there does not yet exist a 
+higher-resolution image of a human brain. Moreover, there currently exists a 
+lack of standardized tools for processing the BigBrain as a consequence 
+of its size. To examine the effects processing BigBrain has on the Big Data 
+strategies, we partitioned the full 3845X3015X3470 voxel image into 30 (5X3X2)
+chunks, 125 (5X5X5) chunks and 750 (5X15X10) chunks. Additionally, the full 
+image was also split in half (769X603X347 voxels) and the half image was 
+partitioned into 125 chunks.
+
+Processing large images are only considered to be part of the BigData problem 
+in neuroscience. The other problem is processing large MRI datasets, that is,
+datasets consisting of many small brain images belonging to various different 
+subjects. Although we have not explored explicitly the processing of large MRI
+datasets, the 75GB BigBrain is within the size ballpark~\cite{VanHorn2014} of 
+what a large MRI dataset would be today.
+
+As it is possible that both small and large data may need to be processed using
+the same pipeline \todo{explain pipelines in intro if not done already}, we 
+wanted to determine the effects of the data management strategies on small 
+data as well. For this, we selected a 12MB T1W image belonging to subject 1 of 
+the ds000001 dataset version 6 ~\cite{openneuro}. In order to be able to split 
+it into 125 chunks, it was necessary to zero-pad the image to the dimensions
+165X200X200 voxels, which subsequently increased the total image size to 13M.
 
 \subsubsection{Applications} % 1 page
+\begin{algorithm}\caption{Incrementation}\label{alg:incrementation}
+    \begin{algorithmic}
+    \Require $x$, a sleep delay in float
+    \Require $fs$, filesystem to save image to (i.e. mem, tmpfs, local disk, lustre). 
+    \ForEach{$i \in iterations$}
+    \ForEach{$chunk \in image$}
+        \State $chunk\gets chunk+1$
+        \State sleep $x$
+        \State save $chunk$ to $fs$
+    \EndFor
+    \EndFor
+\end{algorithmic}
+\end{algorithm}
 
 % Incrementation (avoid cache effects in binarization)
+In order to investigate how the different strategies impact processing, we 
+selected a simple incrementation pipeline (Algorithm~\ref{alg:incrementation}) 
+that consisted exclusively of map 
+stages. A series of map-only stages would enable us to evaluate the effects of
+in-memory computing when data locality is preserved. Incrementation was 
+selected 
+over other applications, such as binarization, as it ensured that a new image
+was created at each step (i.e. no caching effects within the executing 
+application). Each partitioned chunk was incremented by 1, in parallel, by
+the processing engines. As incrementing the images is a relatively quick 
+process, we added a sleep delay to the incrementation stage in order to 
+increase task duration. The incremented chunks would be either 
+maintained in-memory (Spark only) or saved to either tmpfs, local disk or 
+Lustre (Spark and Nipype). Should more than a single iteration be requested, 
+the increment chunks would be incremented again and saved to the same storage. 
+This would repeat until the number of requested iterations had elapsed. In all 
+conditions, the first input chunks would be reads from Lustre and the final 
+output chunks would be saved to Lustre. We chose to to perform our initial 
+reads and final writes on Lustre as a multi-tenant clusters' compute node's 
+local storage, if 
+available, is generally temporary and only available for the duration of the 
+allocation. 
+
+For our first incrementation experiment, we investigated the effects of
+in-memory computing on varying total data size. to do this, we increased the 
+number of incrementation iterations from 1, 10 and 100 times. The total data 
+size would then increased from 75GB, at 1 iteration, to 7500GB, at 100 
+iterations. In order
+to validate the model, the D/C was varied to fall in different regions of 
+Equation~\ref{eq:page-cache-inequality}. The D/C selected were 256, 178.6, 80 
+and 1.9MB/s\todo{present this as a table?}. 80 and 1.9MB/s satisfied the 
+inequality for local disk, whereas only 1.9MB/s satisfied the inequality for 
+Lustre. These D/C ratios were applied to each iteration experiment, such that 
+we were able to get both the effect of increasing the total amount of data, in 
+addition to, increasing the task duration for a given data size.
+
+We combined the first experiment with our second experiment such the we could 
+evaluate the effects of in-memory computing on varying task duration. If the 
+page cache has sufficient time to flush, it should be expected that using 
+in-memory computing should have no increased speed-up over disk. We maintained 
+the D/C ratios as those mentioned above, but rather than applying only one to
+a different number of iterations, we applied all four D/C to all numbers of 
+iterations. That is 1 iteration, 10 iterations and 100 iterations were all 
+processed with using the aforementioned D/C ratios.
+
+As a third incrementation experiment, we were interested in the effects of 
+chunk size on in-memory computing. Naturally, greater chunk size signifies 
+a decrease in parallelization, however, it also means an increase in sequential
+I/O. For this experiment we incremented the 30, 125 and 750 chunk complete
+BigBrain image. The amount of parallelization for 30 chunks was 2 cores/node, 
+whereas it was 9 cores/node for 125 chunks and 25 cores/node for 750 chunks. 
+While Spark attempted to load-balance the data, it used up only 25 of the 40 
+cores for 750 chunks. In contrast, Nipype tried to use up as many cores as 
+possible. To ensure both engines were processing the same amount of data 
+concurrently, we fixed the amount of cores used to 25.
+Unlike the previous experiment, the D/C ratio was kept static at 174.4MB/s, 
+however, this ratio ensured that different regions of the inequality were 
+reached depending on amount of parallelization. A ratio of 174.4 MB/s satified
+the inequality for local disk at 30 chunks. All other ratios did not satisfy 
+the inequality for Lustre and local disk. Unfortunately, 30 chunks could no be 
+processed using in-memory Spark as its individual chunk size of 3GB exceeded 
+the 2GB partition size limit imposed by Spark.
+
+For our fourth and final incrementation experiment, we investigated the effects 
+of the strategies on different image sizes. We selected the 75GB BigBrain, the
+38GB half BigBrain and the 13M T1W MRI image for this experiment. The number of
+chunks was fixed at 125. Similarly to the previous experiment, the total 
+sequential compute time was fixed, however, due to varying size in total data 
+processed, the D/C ratio varied. Once again, we ensured that the D/C ratio fell
+in multiple different regions of the inequality. The D/C ratio ranged from 
+348.8 MB/s for BigBrain and 174.4MB/s for half Bigbrain, to 0.1MB/s for the MRI 
+image. Only the 0.1MB/s MRI satisfied the inequality for both Lustre and local 
+disk.
+
+Since data-locality is not normally preserved in Nipype (a new SLURM allocation 
+is requested for each processed task), we instrumented Nipype to ensure data 
+locality. That is, for each chunk partition, we requested a SLURM allocation to
+process the entire pipeline in parallel, using Nipype's MultiProc scheduler, on 
+a given node. This was possible as no communication was required between the 
+processed chunks.
+
+
 
 % average (1 shuffle)
 % Nipype: can't use SLURM plugin so had to actively poll.
