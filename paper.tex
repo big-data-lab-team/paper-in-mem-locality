@@ -3,7 +3,8 @@
 \usepackage{graphicx}
 \usepackage{color}
 \usepackage{colortbl} % for \rowcolor
-
+\usepackage{caption}
+\usepackage{subcaption}
 \usepackage[bookmarks=false]{hyperref}
 \usepackage{algpseudocode}
 \usepackage{algorithm}
@@ -538,6 +539,31 @@ $165\times200\times200$ voxels, which subsequently increased the total image siz
 \end{algorithmic}
 \end{algorithm}
 
+\begin{figure*}
+\begin{subfigure}{0.33\linewidth}
+\centering
+    \includegraphics[width=\textwidth]{results/figures/tmpfs-incrementation.pdf}
+\caption{}
+\label{fig:sub1}
+\end{subfigure}%
+    \begin{subfigure}{0.33\linewidth}
+\centering
+    \includegraphics[width=\textwidth]{results/figures/local-incrementation.pdf}
+\caption{}
+\label{fig:sub2}
+    \end{subfigure}%
+\begin{subfigure}{0.33\linewidth}
+\centering
+    \includegraphics[width=\textwidth]{results/figures/lustre-incrementation.pdf}
+\caption{}
+\label{fig:sub3}
+\end{subfigure}
+    \caption{Model evaluation on (a) tmpfs, (b) local and (c) Lustre. Grey 
+             regions denote areas that violate model predictions.}
+\label{fig:modeleval}
+\end{figure*}
+
+
 % Incrementation (avoid cache effects in binarization)
 In order to investigate how the different strategies impact processing, we 
 selected a simple incrementation pipeline (Algorithm~\ref{alg:incrementation}) 
@@ -653,21 +679,186 @@ specific instrumentation in Nipype.
 
 \subsection{Model Evaluations}
 
+In order to evaluate our model, we compared the observed in-memory speedup 
+ratio to our model's expected speed-up ratio for the given 
+D/C / $\delta$/$\gamma$ used (Figure~\ref{fig:modeleval}). Experiments for 
+which there was no in-memory equivalent (i.e. BigBrain split into 30 chunks) 
+were not considered.
+
+%probably confusing to mention values, but they're here for now
+Results show that, overall, the model correctly predicted the effect of page 
+cache on processing times for local disk and Lustre. Points which violated 
+model predictions were found at 1 iteration, where page cache would not have 
+been saturated, due to the amount of data being written, and at a task duration
+of 320 seconds. However, in all cases, the ``1" boundary was never trespassed by 
+more than a factor of 0.19, and is therefore likely a result of system 
+variability.
+
+Lustre's regression slope is smallest of the three filesystems, possibly 
+lending to the fact that Lustre was nearly always in transient state. Out of 
+the thirty four benchmarks taken on Lustre, Lustre was only expected to be in steady 
+state for four of the benchmarks (MRI and all benchmarks with a steady state of
+320). This was validated by our experiments.
+
+The next smallest slope is that of the local disk. The local disk was \todo{continue after disk benchmarks}
+
+Unlike local disk and Lustre, tmpfs exists within the page cache and should not 
+be affected by it in the same way. However, when memory is low, tmpfs will 
+begin to write to the swap space, located on disk. As a result, it is possible 
+to see similar trends to local disk when space is low. 
+Figure~\ref{fig:modeleval} (a) shows that the speed-up between in-memory 
+computing and tmpfs increases as the D/C / $\delta$/$\gamma$ ratio increases. 
+This is unexpected as both tmpfs and in-mem reside in memory and should 
+therefore both have comparable makespans. This was found to occur when the 
+contention to RAM was highest. In other words, when 750 chunks were written to
+disk in 10 iterations with a task duration of 0.59s, Spark in-memory was 
+approximately 2x faster. 
+%why is this? will generate gantts to investigate further.
+
+
+\subsection{Iterations}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{results/figures/iterations.pdf}
+    \caption{Makespans of Spark and Nipype writing to memory, tmpfs, local 
+             disk and Lustre for a given number of iterations. All 
+             makespans use 125 chunks of the complete BigBrain and have a fixed
+             task duration of 3.44 seconds}\label{fig:iterations}
+\end{figure}
+
+
+Figure~\ref{fig:iterations} shows the difference between the different 
+filesystem choices given the number of iterations. At 1 iteration, all 
+filesystems behave the same, as they are all writing to the page cache. As the 
+total amount of data written by the application increases to 750~GB, there is a 
+greater disparity between Lustre and in-memory (2.67~x slower, on average). 
+Local disk performance, however, 
+is still comparable to memory (1.38~x slower, on average). Despite local disk and 
+Lustre both being in transient state, local disk encounters less contention 
+than what would be found on Lustre. 
+
+%sp_mem 1it = 34s, 10it = 64 100it = 381
+%3.44 * 1 = 3.44, 3.44*10 = 34, 3.44*100 = 344
+
+%sp_tmpfs 1it = 31, 10it = 69, 
+
+At 100 iterations, or 7500~GB, Lustre can be found to be, on average, 3.82x 
+slower than Spark in-memory. The page cache, on Zenith, occupies 20\% of 
+available memory. Assuming all memory (187~GB) was available, only 37.4~GB of 
+data could be held in a node's page cache at any given time. The slowdown 
+experienced can be explained by the much less data could reside in the page 
+cache at a given time, in contrast to 10 iterations, and therefore the effects 
+of disk bandwidth are more significant in this workflow
+
+While there is some variability that can be seen in Figure~\ref{fig:iterations} 
+between the two engines, this believed to be insignificant, and potentially due 
+to SLURM node allocation delays in our launching of Nipype.
+
+% Comment on the general trend
+% note 'on average' = average between spark and nipype. local disk spark is 
+% 1.22x slower and local disk nipype is 1.54x slower
+% spark lustre 2.66x slower; nipype lustre 2.68x slower
+
 \subsection{CPU Time}
 % Comment on the general trend
 % We can't really say that imaging tasks are not small. Even Freesurfer could be decomposed.
 %
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{results/figures/cputime.pdf}
+    \caption{Makespans of Spark and Nipype writing to memory, tmpfs, local 
+             disk and Lustre with varying task durations. All 
+             makespans use 125 chunks of the complete BigBrain and are fixed at 
+             10 iterations}\label{fig:cputime}
+\end{figure}
+
+Increasing CPU time ensured that all filesystems had a comparable performance
+(Figure~\ref{fig:cputime}). Lustre, for instance, is approximately 1.01x slower
+than Spark in-memory at a task duration of 320 seconds, whereas it is 
+approximately 3.25x slower that Spark in-memory with 2.4 second tasks. This 
+pattern corroborated by our model which postulates that 
+data movement costs will have little impact on compute-intensive tasks. The 
+reasoning for this is that longer tasks give the page cache more time to flush 
+between write to disk. The longer the delay, the less likely the page cache is 
+to fill up when the concurrent data size written fits within the page cache.
+
+
+
 
 
 
 \subsection{Image Block size}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{results/figures/numchunks.pdf}
+    \caption{Makespans of Spark and Nipype writing to memory, tmpfs, local 
+             disk and Lustre with varying numbers of chunks. All 
+             makespans have the same overall sequential CPU time and 
+             are fixed at 
+             10 iterations}\label{fig:numchunks}
+\end{figure}
 % Comment on the general trend
+As can be seen in Figure~\ref{fig:numchunks}, makespan decreases when the number 
+of chunks increase. This is due to the fact that parallelism increases. With 
+30 chunks, only 2 CPUs per node are actively working. At 125 chunks, this 
+changes to a maximum of 9 CPUs per node, and at 750 chunks all 40 CPUs can be 
+active. It can be noted that no significant speedup can be seen between 125 
+chunks and 750 chunks. This is because out of the 50 chunks processed by each 
+node, only 40 can be processed concurrently, thus requiring two sequential 
+incrementation batches, and resulting in similar makespans as 125 
+chunks.
+
+In terms of filesystem selection, local and tmpfs perform comparably for all 
+conditions, with Lustre being significantly slower. As with varying the number 
+of iterations, Lustre is slower due to increased filesystem contention, which 
+is, at minimum, 15x greater than contention on local disk. With an increase in 
+number of chunks, local disk and tmpfs makespans begin to converge. A potential 
+explanation for this may be that tmpfs is utilizing swap space. As concurrency 
+increases, the memory footprint of the application also increases. It is 
+possible that at 750 chunks, swapping to disk is required by tmpfs, thus 
+resulting in similar processing times as local disk.
+
+Swapping may also be an explanation for the variance between Spark in-memory 
+and tmpfs performance. While Spark may also spill to disk, it only does so when
+data does not fit in memory. As none of the RDDs generated throughout the 
+pipeline were cached and all data concurrently accessed could be mantained 
+in-memory, even for the 750 chunks which were processed in two batches, it did 
+not need to spill to disk.
 
 \subsection{Data Size}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{results/figures/datasize.pdf}
+    \caption{Makespans of Spark and Nipype writing to memory, tmpfs, local 
+             disk and Lustre with varying data sizes. All 
+             makespans use 125 chunks and are fixed at 
+             10 iterations with a task duration of 1.76 
+             seconds }\label{fig:datasize}
+\end{figure}
 % Comment on the general trend
+Increasing overall data size decreases performance, as can be seen in 
+Figure~\ref{fig:datasize}. When the data size is very small, as is the case 
+with the MRI image, all filesystem makespans are comparable. This is due to the 
+fact that page cache can be leveraged fully regardless of file system. However, 
+this time, Spark in-memory performed significantly worse than all other 
+filesystems. Upon further inspection, it appeared that Spark in-memory executed
+in a sequential order, on a single worker node. Lack of parallelism for the MRI 
+image may be a result of Spark's max partition size, which is by default 128~MB
+-- significantly larger than the 13~MB MRI image. Due to Spark in-memory's 
+sequential execution, it was omitted from the graph.
 
-\subsection{Iterations}
-% Comment on the general trend
+At half BigBrain, the makespan differences become apparent in both local disk 
+and Lustre, with Lustre, with Lustre becoming 2.4x slower than in-memory. This 
+can be attributed to page cache saturation, as predicted by the model for both 
+half the BigBrain image and the complete BigBrain. Only the MRI image was 
+predicted to fall within the model constraints. 
+
+When the complete BigBrain is processed, the disparity between the different 
+filesystems becomes even greater. Lustre becomes 3.68x slower, whereas local 
+disk is now 1.68x slower. The reasoning for this is that the page cache fills 
+up faster than with half of BigBrain.
+
+\todo{change Spark's max partition size and test to see if it fixes the problem}
 
 % Interactive gantt charts?
 

@@ -22,6 +22,8 @@ with open(sys.argv[1], 'r') as f:
 
     driver_start = None
     for line in f:
+        if 'read_file' in line or 'write_file' in line:
+            continue
         l = line.split(' ')
         node = {}
         node['name'] = l[0]
