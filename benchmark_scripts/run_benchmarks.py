@@ -38,7 +38,7 @@ data_dir = '/mnt/lustrefs/spark/data'
 
 tmpfs = '/dev/shm/inc_exp'
 local = '/local/inc_exp'
-lustre = '/mnt/lustrefs/spark/inc_exp'
+lustre = '/mnt/lustrefs/spark/inc_exp_rem'
 
 done_file = op.join(lustre, "COMPLETED")
 
@@ -146,7 +146,8 @@ for cdn in conditions:
 
         print("Submitting command: ", cmd)
 
-        s.run("bash " + spark_template, cmd_kwargs={"spscript": cmd},
+        s.run("bash " + spark_template, cmd_kwargs={"spscript": cmd,
+                                                    "parallelism": slurm_conf["cpus-per-task"]},
               _cmd=sys.argv[2])
     else:
         with open(legends[cdn["dataset"]]) as legend:

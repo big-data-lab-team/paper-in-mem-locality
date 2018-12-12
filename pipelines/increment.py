@@ -13,7 +13,7 @@ except Exception as e:
 
 
 
-def increment(fn, outdir, delay, benchmark_file, start_time):
+def increment(fn, outdir, delay, benchmark_file, start_time, avg):
     print('Incrementing image: ', fn)
 
     start = time.time() - start_time
@@ -26,6 +26,9 @@ def increment(fn, outdir, delay, benchmark_file, start_time):
                     socket.gethostname(), op.basename(fn), get_ident())
 
     inc_data = im.get_data() + 1
+
+    if avg is not None:
+        inc_data += nib.load(avg).get_data().astype(inc_data.dtype, copy=False)
 
     im = nib.Nifti1Image(inc_data, affine=im.affine, header=im.header)
 
@@ -68,6 +71,8 @@ def main():
                         help='start time of the application')
     parser.add_argument('--delay', type=float, default=0,
                         help='task duration time (in s)')
+    parser.add_argument('--avg', type=str,
+                        help='average chunk to be added to incremented chunk')
 
     args = parser.parse_args()
 
@@ -77,7 +82,7 @@ def main():
         pass
 
     increment(args.filename, args.output_dir, args.delay,
-              args.benchmark_file, args.delay)
+              args.benchmark_file, args.delay, args.avg)
 
 
 if __name__ == '__main__':
