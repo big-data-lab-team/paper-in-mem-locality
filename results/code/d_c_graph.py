@@ -35,9 +35,9 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     }
     
     bandwidths = { # MiB/s
-        'lustre': 401.49,
-        'local': 173.5, #750, #292, 
-        'tmpfs': 1400#1793.75
+        'lustre': 504.03,
+        'local': 193.64, 
+        'tmpfs': 1377.18
     }
     
     gammas = { # by number of    blocks
@@ -86,7 +86,6 @@ def d_c_fig(bench_dir, makespan_file, out_file):
                                                            b['data_file'],
                                                            b['task_duration'])
         if benches.get(in_mem_file) == None:
-            print(in_mem_file)
             continue # file isn't in benchmark
         b['memory-speed-up'] = (
             b['makespan'] / benches[in_mem_file]['makespan']
@@ -124,17 +123,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
             x.append((benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma))
         y.append(benches[file_name]['memory-speed-up'])
 
-        if (benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma) <= 1 and benches[file_name]['memory-speed-up'] > 1:
-            print(benches[file_name], 'LHS')
-        elif (benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma) > 1 and benches[file_name]['memory-speed-up'] <= 1:
-            print(benches[file_name], 'RHS')
-        #if (benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma) <= 1 and benches[file_name]['memory-speed-up'] <= 1:
-        #    print(benches[file_name], 'LHS')
 
-        #if benches[file_name]['file_system'] == 'tmpfs' and benches[file_name]['memory-speed-up'] > 1:
-        #    print(benches[file_name])
-
-    print(len(x_tmpfs), len(x_disk), len(x_sfs))
     from matplotlib import pyplot as plt
     from numpy import polyfit, poly1d
     fit = polyfit(x_tmpfs,y_tmpfs,1)
