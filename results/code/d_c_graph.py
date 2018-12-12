@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import utils
 import sys  
 import os
 import argparse
@@ -16,13 +15,15 @@ def parse_bench_file_name(file_name):
     blocks = 30
     if '125' in stringsit[1]:
         blocks = 125
-    if '750' in stringsit[1]:
+    elif '750' in stringsit[1]:
         blocks = 750
     data = 'MRI'
     if 'HBB' in stringsit[1]:
         data = 'HBB'
     elif 'BB' in stringsit[1]:
         data = 'BB'
+    if delay == 320:
+        delay = int(delay)
     
     return iterations, data, fs, wf, delay, blocks
 
@@ -34,9 +35,9 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     }
     
     bandwidths = { # MiB/s
-        'lustre': 401.49,
-        'local': 1480.2, 
-        'tmpfs': 1793.75
+        'lustre': 504.03,
+        'local': 193.64, 
+        'tmpfs': 1377.18
     }
     
     gammas = { # by number of    blocks
@@ -81,10 +82,10 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     for file_name in os.listdir(bench_dir):
         b = benches[file_name]
         in_mem_file = "sp_mem_{}it{}{}_{}delay.out".format(b['iterations'],
-                                                             b['blocks'],
-                                                             b['data_file'],
-                                                             b['task_duration'])
-        if benches.get(in_mem_file) == None or 'MRI' in in_mem_file:
+                                                           b['blocks'],
+                                                           b['data_file'],
+                                                           b['task_duration'])
+        if benches.get(in_mem_file) == None:
             continue # file isn't in benchmark
         b['memory-speed-up'] = (
             b['makespan'] / benches[in_mem_file]['makespan']
@@ -116,17 +117,21 @@ def d_c_fig(bench_dir, makespan_file, out_file):
         gamma = gammas[benches[file_name]['blocks']]
         if fs == 'lustre':
             gamma = Gammas[benches[file_name]['blocks']]
-        x.append((benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma))
+        if fs == 'tmpfs':
+            x.append(benches[file_name]['D'])
+        else:
+            x.append((benches[file_name]['D']/benches[file_name]['C']) / (bandwidths[fs]/gamma))
         y.append(benches[file_name]['memory-speed-up'])
 
+
     from matplotlib import pyplot as plt
+    from numpy import polyfit, poly1d
+    fit = polyfit(x_tmpfs,y_tmpfs,1)
+    fit_fn = poly1d(fit)
     #plt.plot(x_mem, y_mem, 'o', label="In memory")
     plt.plot(x_tmpfs, y_tmpfs, 'g+', label="tmpfs")
-    rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
-    plt.gca().add_patch(rect)
-    rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
-    plt.gca().add_patch(rect)
-    plt.xlabel("(D/C) / (d(D)elta/g(G)amma)")
+    plt.plot(x_tmpfs, fit_fn(x_tmpfs), '--k', label=fit_fn)
+    plt.xlabel("D")
     plt.ylabel("Speed-up of Spark in-mem")
     plt.legend()
     plt.ylim(0)
@@ -135,7 +140,11 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     plt.savefig(os.path.join(os.path.dirname(out_file), 
                 'tmpfs-{}'.format(os.path.basename(out_file))))
     
+    plt.figure()
+    fit = polyfit(x_disk, y_disk,1)
+    fit_fn = poly1d(fit)
     plt.plot(x_disk, y_disk, 'b+', label="Local Disk")
+    plt.plot(x_disk, fit_fn(x_disk), '--k', label=fit_fn)
     rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
     plt.gca().add_patch(rect)
     rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
@@ -149,8 +158,11 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     plt.savefig(os.path.join(os.path.dirname(out_file), 
                 'local-{}'.format(os.path.basename(out_file))))
     plt.figure()
-    plt.plot(x_sfs, y_sfs, 'r+', label="Lustre")
-    rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
+    fit = polyfit(x_sfs, y_sfs,1)
+    fit_fn = poly1d(fit)
+    plt.plot(x_sfs, y_sfs, 'r+', label='Lustre')
+    plt.plot(x_sfs, fit_fn(x_sfs), '--k', label=fit_fn)
+    rect = plt.Rectangle([1, 0], 250, 1, color='gray', edgecolor=None)
     plt.gca().add_patch(rect)
     rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
     plt.gca().add_patch(rect)

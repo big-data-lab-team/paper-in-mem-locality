@@ -40,6 +40,9 @@ def genfig(exp, makef, outf, cond):
        
             iterations = int(iterations)
 
+            if exp == 3 and fs == 'mem' and im == 'MRI':
+                continue
+
             if exp == 1:
                 if delay != cond: continue
                 bench_res[(engine, fs)].append((iterations,
@@ -82,32 +85,30 @@ def genfig(exp, makef, outf, cond):
             bench_res[key] = (asarray(index), y_labels)
 
         bar_width = 0.1
-        print(bench_res[('sp', 'mem')][0])
         fig, ax = plt.subplots()
+
         spim = ax.bar(bench_res[('sp', 'mem')][0] - bar_width * 3,
                       bench_res[('sp', 'mem')][1],
-                      bar_width,color='y', label='Spark in-memory')
+                      bar_width,color='#F4CC70', label='Spark in-memory')
         
         sptmpfs = ax.bar(bench_res[('sp', 'tmpfs')][0] - bar_width * 2,
                          bench_res[('sp', 'tmpfs')][1],
-                         bar_width, color='g', label='Spark tmpfs')
-        splocal = ax.bar(bench_res[('sp', 'local')][0],
-                         bench_res[('sp', 'local')][1],
-                         bar_width, color='b', label='Spark local')
-        splustre = ax.bar(bench_res[('sp', 'lustre')][0] + bar_width * 2,
-                          bench_res[('sp', 'lustre')][1],
-                          bar_width, color='r', label='Spark lustre')
-
-        
+                         bar_width, color='#DE7A22', label='Spark tmpfs')
         nptmpfs = ax.bar(bench_res[('np', 'tmpfs')][0] - bar_width,
                          bench_res[('np', 'tmpfs')][1], bar_width, alpha=0.6,
-                         color='g', label='Nipype tmpfs', hatch='/')
+                         color='#DE7A22', label='Nipype tmpfs', hatch='/')
+        splocal = ax.bar(bench_res[('sp', 'local')][0],
+                         bench_res[('sp', 'local')][1],
+                         bar_width, color='#20948B', label='Spark local')
         nplocal = ax.bar(bench_res[('np', 'local')][0] + bar_width,
                          bench_res[('np', 'local')][1], bar_width, alpha=0.6,
-                         color='b', label='Nipype local', hatch='/')
+                         color='#20948B', label='Nipype local', hatch='/')
+        splustre = ax.bar(bench_res[('sp', 'lustre')][0] + bar_width * 2,
+                          bench_res[('sp', 'lustre')][1],
+                          bar_width, color='#1a1aff', label='Spark lustre')
         nplustre = ax.bar(bench_res[('np', 'lustre')][0] + bar_width * 3,
                           bench_res[('np', 'lustre')][1], bar_width, alpha=0.6,
-                          color='r', label='Nipype lustre', hatch='/')
+                          color='#1a1aff', label='Nipype lustre', hatch='/')
         
         ax.set_ylabel('Makespan (s)')
 
@@ -132,8 +133,7 @@ def genfig(exp, makef, outf, cond):
             ax.set_xlabel('Task duration (s)')
 
         fig.tight_layout()
-        plt.ylim(32000, 32400)
-        #plt.ylim(0, 200)
+        #plt.box(False)
         plt.legend()
         plt.savefig(outf)
 
