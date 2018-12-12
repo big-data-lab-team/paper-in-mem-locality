@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 import os
 
@@ -19,7 +20,7 @@ for bench in os.listdir(sys.argv[1]):
                     if start is None or start_time < start:
                         driver_line = row
                         start = start_time
-                    if end is None or end_time < end:
+                    if end is None or end_time > end:
                         end = end_time
                         driver_line[2] = str(end - start)
                         driver_line[1] = "0"
