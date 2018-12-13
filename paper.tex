@@ -11,7 +11,7 @@
 \usepackage{algpseudocode}
 \algnewcommand\algorithmicforeach{\textbf{for each}}
 \algdef{S}[FOR]{ForEach}[1]{\algorithmicforeach\ #1\ \algorithmicdo}
-\usepackage[bookmarks=false]{hyperref}
+\usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=black,citecolor=blue,filecolor=black,urlcolor=blue}
 
 \newcommand{\todo}[1]{\marginpar{\parbox{18mm}{\flushleft\tiny\color{red}\textbf{TODO}:
@@ -41,7 +41,30 @@
 \maketitle
 
 \begin{abstract}
-  
+We benchmark Big Data processing strategies, namely in-memory 
+computing, data locality, and lazy evaluation, on typical neuroimaging 
+processing use cases represented by the BigBrain dataset. We use Dell 
+EMC's Top-500 cluster, as well as Apache Spark and Nipype as 
+representative processing engines. We model Big Data thresholds by 
+comparing the data/compute ratio of the application to the disk and 
+shared file system bandwidths reported to the number of concurrent 
+processes in a node and across the cluster. This model acknowledges the 
+fact that page caching provided by the Linux kernel is critical to the 
+performance of Big Data applications. Results show that in-memory 
+computing alone speeds-up executions by a factor of up to 1.6, while 
+combined with data locality this factor reaches 5.3. Such important 
+speed-up values are likely to be observed on typical image processing 
+operations performed on images of size larger than 75GB. A ballpark 
+speculation from our model showed that in-memory computing alone would 
+not speed-up current 
+functional MRI analyses, but that it would when coupled with data 
+locality, for a number of concurrently  processed subjects in the order 
+of 200. In addition, we observe that emulating in-memory computing 
+using in-memory file systems (tmpfs) does not reach the performance of 
+an in-memory engine, presumably due to swapping to disk and the lack of data cleanup.
+We conclude that Big Data processing strategies are 
+worth developing for neuroimaging 
+applications. 
 \end{abstract}
 
 % Talk about containers somewhere?
@@ -480,6 +503,8 @@ $\frac{\delta}{\gamma}$.
 
 \subsection{Simulation} % is it included? 0.5 page
 
+\todo{Remove if not included}
+
 % Even if we end up not using simulation, here we should explain
 % why the model in simgrid is limited. Refer to Fred's paper at CCGrid 2017.
 % The following sub-sections become a set of models that we could implement
@@ -551,10 +576,13 @@ image was also split in half ($769\times603\times347$ voxels) and the half image
 partitioned into 125 chunks.
 
 Processing large images is only considered to be part of the Big Data problem 
-in neuroscience. The other problem is processing large MRI datasets, that is,
-datasets consisting of many small brain images belonging to various different 
-subjects. Although we have not explored explicitly the processing of large MRI
-datasets, the 75GB BigBrain is within the size ballpark~\cite{van2014human} of 
+in neuroscience. The other problem is processing large MRI datasets, 
+that is, datasets consisting of many small brain images belonging to 
+various different subjects. This situation is commonly observed in 
+functional MRI (fMRI), where it is becoming increasingly common to 
+process data from hundreds of subjects. Although we have not explored 
+explicitly the processing of large MRI datasets, the 75GB BigBrain is 
+within the size ballpark~\cite{van2014human} of 
 MRI datasets commonly processed in today's studies.
 
 As it is possible that both small and large data may need to be processed using
@@ -643,11 +671,11 @@ processed chunks.
  n &
  D (GB) & C (s) & D/C (MB/s) &
  $\gamma$ & $\delta/\gamma$ (MB/s) & $\Gamma$ & $\Delta/\Gamma$ (MB/s)&
- \parbox{2cm}{Page-cache on local disk? (Eq.~\ref{eq:page-cache-inequality})} & \parbox{2cm}{Page cache on Lustre? (Eq.~\ref{eq:page-cache-sharedfs})}\\
+ (D/C)/($\delta/\gamma$) & (D/C)/($\Delta/\Gamma$)\\
  \hline
-1   &75    & 430    & 178.6 & 9 & 21.5 & 125 & 4.0 & \cellcolor{red!20} No & \cellcolor{red!20} No\\
-10  & 750   & 4,300 & 178.6 & 9 & 21.5 & 125 & 4.0 & \cellcolor{red!20} No & \cellcolor{red!20} No\\
-100 & 7,500 & 43,000& 178.6 & 9 & 21.5 & 125 & 4.0 & \cellcolor{red!20} No & \cellcolor{red!20} No\\
+1   &75    & 430    & 178.6 & 9 & 21.5 & 125 & 4.0 & \cellcolor{red!20} 8.3 & \cellcolor{red!20} 44.7\\
+10  & 750   & 4,300 & 178.6 & 9 & 21.5 & 125 & 4.0 & \cellcolor{red!20} 8.3 & \cellcolor{red!20} 44.7\\
+100 & 7,500 & 43,000& 178.6 & 9 & 21.5 & 125 & 4.0 & \cellcolor{red!20} 8.3 & \cellcolor{red!20} 44.7\\
 \hline
   \multicolumn{10}{c}{}\\
 
@@ -658,12 +686,12 @@ processed chunks.
  x (s) &
  D (GB) & C (s) & D/C (MB/s) &
  $\gamma$ & $\delta/\gamma$ (MB/s) & $\Gamma$ & $\Delta/\Gamma$ (MB/s)&
- \parbox{2cm}{Page-cache on local disk? (Eq.~\ref{eq:page-cache-inequality})} & \parbox{2cm}{Page cache on Lustre? (Eq.~\ref{eq:page-cache-sharedfs})}\\
+ (D/C)/($\delta/\gamma$) & (D/C)/($\Delta/\Gamma$)\\
  \hline
- 2.4  & 750 & 3,000   & 256   & 9 & 21.5 & 125 & 4.0 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- 3.44 & 750 & 4,300   & 178.6 & 9 & 21.5 & 125 & 4.0 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- 7.68 & 750 & 9,600   & 80    & 9 & 21.5 & 125 & 4.0 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- 320  & 750 & 400,000 & 1.9   & 9 & 21.5 & 125 & 4.0 &  \cellcolor{green!20} Yes & \cellcolor{green!20} Yes  \\
+ 2.4  & 750 & 3,000   & 256   & 9 & 21.5 & 125 & 4.0 &  \cellcolor{red!20} 11.9 & \cellcolor{red!20} 64   \\
+ 3.44 & 750 & 4,300   & 178.6 & 9 & 21.5 & 125 & 4.0 &  \cellcolor{red!20} 8.3 & \cellcolor{red!20} 44.7   \\
+ 7.68 & 750 & 9,600   & 80    & 9 & 21.5 & 125 & 4.0 &  \cellcolor{red!20} 3.7 & \cellcolor{red!20} 20   \\
+ 320  & 750 & 400,000 & 1.9   & 9 & 21.5 & 125 & 4.0 &  \cellcolor{green!20} 0.09 & \cellcolor{green!20} 0.48  \\
  \hline
   \multicolumn{10}{c}{}\\
   
@@ -674,11 +702,11 @@ processed chunks.
  chunks &
  D (GB) & C (s) & D/C (MB/s) &
  $\gamma$ & $\delta/\gamma$ (MB/s) & $\Gamma$ & $\Delta/\Gamma$ (MB/s)&
- \parbox{2cm}{Page-cache on local disk? (Eq.~\ref{eq:page-cache-inequality})} & \parbox{2cm}{Page cache on Lustre? (Eq.~\ref{eq:page-cache-sharedfs})}\\
+ (D/C)/($\delta/\gamma$) & (D/C)/($\Delta/\Gamma$)\\
  \hline
- 30  & 750 & 4,400   & 174.6 & 2  & 96.8 & 30  & 16.8 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- 125 & 750 & 4,400   & 174.6 & 9  & 21.5 & 125 & 4.0 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- 750 & 750 & 4,400   & 174.6 & 25 & 7.7  & 375 & 1.3 &  \cellcolor{red!20} No & \cellcolor{red!20} No  \\
+ 30  & 750 & 4,400   & 174.6 & 2  & 96.8 & 30  & 16.8 &  \cellcolor{red!20} 1.8 & \cellcolor{red!20} 10.4   \\
+ 125 & 750 & 4,400   & 174.6 & 9  & 21.5 & 125 & 4.0 &  \cellcolor{red!20} 8.1 & \cellcolor{red!20} 43.7  \\
+ 750 & 750 & 4,400   & 174.6 & 25 & 7.7  & 375 & 1.3 &  \cellcolor{red!20} 22.7 & \cellcolor{red!20} 134.3  \\
 
 \hline
   \multicolumn{10}{c}{}\\ 
@@ -689,13 +717,16 @@ processed chunks.
  image  &
  D (GB) & C (s) & D/C (MB/s) &
  $\gamma$ & $\delta/\gamma$ (MB/s) & $\Gamma$ & $\Delta/\Gamma$ (MB/s)&
- \parbox{2cm}{Page-cache on local disk? (Eq.~\ref{eq:page-cache-inequality})} & \parbox{2cm}{Page cache on Lustre? (Eq.~\ref{eq:page-cache-sharedfs})}\\
+(D/C)/($\delta/\gamma$) & (D/C)/($\Delta/\Gamma$)\\
  \hline
- BigBrain      & 750   & 2,200   & 349.1     & 9  & 21.5  & 125 & 4.0 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- Half BigBrain & 375   & 2,200   & 174.6     & 9  & 21.5  & 125 & 4.0 &  \cellcolor{red!20} No & \cellcolor{red!20} No   \\
- MRI           & 0.127 & 2,200   & 0.06 & 9& 21.5  & 125 & 4.0 &  \cellcolor{green!20} Yes & \cellcolor{green!20} Yes  
+ BigBrain      & 750   & 2,200   & 349.1     & 9  & 21.5  & 125 & 4.0 &  \cellcolor{red!20} 16.2 & \cellcolor{red!20} 87.3   \\
+ Half BigBrain & 375   & 2,200   & 174.6     & 9  & 21.5  & 125 & 4.0 &  \cellcolor{red!20} 8.1 & \cellcolor{red!20} 43.7   \\
+ MRI           & 0.127 & 2,200   & 0.06      & 9  & 21.5  & 125 & 4.0 &  \cellcolor{green!20} 0.003 & \cellcolor{green!20} 0.015  
 \end{tabular}
-\caption{Experiment conditions}
+\caption{Experiment conditions. Red cells denote the conditions where 
+the inequalities in Equations~\ref{eq:page-cache-inequality} 
+and~\ref{eq:page-cache-sharedfs} do not hold, i.e., the page cache is 
+asymptotically useless. Green cells show the conditions where the page cache covers all data writes.}
 \label{table:experiments}
 \end{table*}
 
@@ -794,6 +825,7 @@ disk.
     \caption{Experiment 4: 125 chunks, 10 iterations, 1.76-second tasks.}\label{fig:datasize}
 \end{subfigure}
 \caption{Experiment results: Makespans of Spark and Nipype writing to memory, tmpfs, local  disk and Lustre.}
+\label{fig:results}
 \end{figure*}
 \subsection{Experiment 1: Number of Iterations}
 
@@ -913,13 +945,13 @@ up faster than with half of BigBrain.
 \centering
     \includegraphics[width=\textwidth]{results/figures/local-incrementation.pdf}
 \caption{Local Disk}
-\label{fig:sub2}
+\label{fig:modeleval-local}
     \end{subfigure}%
 \begin{subfigure}{0.5\linewidth}
 \centering
     \includegraphics[width=\textwidth]{results/figures/lustre-incrementation.pdf}
 \caption{Lustre}
-\label{fig:sub3}
+\label{fig:modeleval-lustre}
 \end{subfigure}
     \caption{Model evaluation. Grey 
              regions denote areas that violate model predictions.}
@@ -928,9 +960,12 @@ up faster than with half of BigBrain.
 
 In order to evaluate the page cache model, we compared the observed 
 speedup ratio provided by in-memory computing to the (D/C) / 
-($\delta$/$\gamma$) and (D/C) / 
-($\Delta$/$\Gamma$) ratios (Fig.~\ref{fig:modeleval}). Experiments for 
-which there was no in-memory equivalent (i.e. BigBrain split into 30 
+($\delta$/$\gamma$) and (D/C) / ($\Delta$/$\Gamma$) ratios 
+(Fig.~\ref{fig:modeleval}). Speed-up ratios were computed as the ratio 
+between the makespan obtained with Spark on local disk or Lustre, and 
+the makespan obtained with Spark for in-memory computing. Experiments 
+for which there was no in-memory equivalent (i.e. BigBrain split into 
+30 
 chunks) 
 were not considered.
 
@@ -953,12 +988,60 @@ factor of 0.19, and is therefore likely a result of system variability.
 
 \section{Discussion} % 2 pages
 \label{sec:discussion}
+
 \subsection{Effect of In-Memory Computing}
 % Shared fs vs local disk vs in-memory: what do we gain?
+We measure the effect of in-memory computing by comparing the runs 
+of Spark in-memory (yellow bars in Fig.~\ref{fig:results}) to the ones 
+of Spark on local disk (non-hatched green bars). The speed-up provided 
+by in-memory computing is also reported in 
+Fig.~\ref{fig:modeleval-local}. The speed-up provided by in-memory 
+computing increases with (D/C) / ($\delta$/$\gamma$), as expected from 
+the model. In our experiments, it peaked at 1.6, for a ratio of 16.2. 
+This correspond to the processing of the BigBrain with 125 chunks and 
+1.76-second tasks in experiment 4 (total computing time C=2,200s), 
+which is typically encountered in common image processing tasks such as 
+denoising, intensity normalization, etc. The speed up of 1.6 is also 
+reached with a ratio of 22.7 in experiment 3, obtained by processing 
+the BigBrain with 750 chunks.
 
-\subsection{Effect of Data Locality}
-% It should be important, in particular when there is contention and when
-% tasks are small. 
+The results also allow us to speculate on the effect of in-memory 
+computing on the pre-processing of functional MRI, another typical use 
+case in neuroimaging. Assuming an average processing time of 20 minutes 
+per subject, which is a ballpark value commonly observed with the 
+popular SPM or FSL packages \todo{add refs}, an input data size of 100MB per subject, 
+and an output data size of 2GB (20-fold increase compared to input 
+size), the D/C ratio would be 1.8MB/s, which would reach the 
+$\delta/\gamma$ threshold measured on this cluster for $\gamma=108$, 
+that is, if 108 subjects were processed on the same node. This is very 
+unlikely as the number of CPUs per node is 40. We therefore conclude 
+that in-memory computing is likely to be useless for fMRI analysis.
+
+%~ \subsection{Effect of Data Locality}
+%~ % It should be important, in particular when there is contention and when
+%~ % tasks are small. 
+%~ We measure the effect of data locality by comparing the runs of Spark 
+%~ on local disk (non-hatched green bars in Fig.~\ref{fig:results}) to the 
+%~ ones of Spark on Lustre (non-hatched blue bars). The speed-up provided by 
+%~ local execution peaks at 3.2, reached at 750 chunks in experiment 3. \todo{This needs to be finished or removed.} 
+
+\subsection{Combined Effect of In-Memory and Data Locality}
+We measure the combined effect of data locality and in-memory computing 
+by comparing the runs of Spark in-memory (yellow bars in 
+Fig.~\ref{fig:results}) to the ones of Spark on Lustre (non-hatched 
+blue bars). The speed-up provided by the combine use of data locality 
+and in-memory computing is also reported in 
+Fig.~\ref{fig:modeleval-lustre}. The provided speed-up increases with 
+(D/C) / ($\Delta$/$\Gamma$), as expected from the model. In our 
+experiments, it peaked around 5, for ratios of 120.4 and 64. Again, 
+this configuration is likely to happen in typical image processing 
+tasks performed on the BigBrain.
+
+As for the fMRI speculation, the D/C 
+ratio of 1.8MB/s would reach the $\Delta/\Gamma$ threshold for 
+$\Gamma=280$, which is a realistic number of subjects to process on a 
+complete cluster. Naturally, this estimate is highly dependent on the observed bandwidth
+of the shared file system ($\Delta$).
 
 \subsection{Effect of Lazy Evaluation}
 
