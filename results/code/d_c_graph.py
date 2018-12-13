@@ -52,9 +52,14 @@ def d_c_fig(bench_dir, makespan_file, out_file):
         750: 350
     }
     
+    file_names = []
     benches = {}
     for file_name in os.listdir(bench_dir):
         it, data, fs, wf, delay, blocks = parse_bench_file_name(file_name)
+        if wf != 'sp': # remove nipype runs from the comparison
+            print("Skipping {}".format(file_name))
+            continue
+        file_names.append(file_name)
         benches[file_name] = {
             'iterations': it,
             'data_file': data,
@@ -75,11 +80,12 @@ def d_c_fig(bench_dir, makespan_file, out_file):
             splits = line.split(' ')
             file_name = splits[0].split(':')[0]
             makespan = float(splits[2])
-            benches[file_name]['makespan'] = makespan
+            if file_name in file_names:
+                benches[file_name]['makespan'] = makespan
     
     
     # Set memory speed-ups
-    for file_name in os.listdir(bench_dir):
+    for file_name in file_names:
         b = benches[file_name]
         in_mem_file = "sp_mem_{}it{}{}_{}delay.out".format(b['iterations'],
                                                            b['blocks'],
@@ -99,7 +105,7 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     y_disk = []
     x_sfs = []
     y_sfs = []
-    for file_name in os.listdir(sys.argv[1]):
+    for file_name in file_names:
         if benches[file_name].get('memory-speed-up') == None:
             continue # file isn't in benchmark
         fs = benches[file_name]['file_system']
@@ -143,34 +149,34 @@ def d_c_fig(bench_dir, makespan_file, out_file):
     plt.figure()
     fit = polyfit(x_disk, y_disk,1)
     fit_fn = poly1d(fit)
-    plt.plot(x_disk, y_disk, 'b+', label="Local Disk")
-    plt.plot(x_disk, fit_fn(x_disk), '--k', label=fit_fn)
-    rect = plt.Rectangle([1, 0], 150, 1, color='gray', edgecolor=None)
+    plt.plot(x_disk, y_disk, 'b+', color="#20948B")
+    #plt.plot(x_disk, fit_fn(x_disk), '--k', label=fit_fn)
+    rect = plt.Rectangle([1, 0], 150, 1, color='#CCCCCC', edgecolor=None)
     plt.gca().add_patch(rect)
-    rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
+    rect = plt.Rectangle([0, 1], 1, 5, color='#CCCCCC', edgecolor=None)
     plt.gca().add_patch(rect)
-    plt.xlabel("(D/C) / (d(D)elta/g(G)amma)")
+    plt.xlabel("(D/C) / ($\delta/\gamma$)")
     plt.ylabel("Speed-up of Spark in-mem")
     plt.legend()
-    plt.ylim(0)
-    plt.xlim(0)
+    plt.ylim(0, 5.5)
+    plt.xlim(0, 130)
     #plt.show()
     plt.savefig(os.path.join(os.path.dirname(out_file), 
                 'local-{}'.format(os.path.basename(out_file))))
     plt.figure()
     fit = polyfit(x_sfs, y_sfs,1)
-    fit_fn = poly1d(fit)
-    plt.plot(x_sfs, y_sfs, 'r+', label='Lustre')
-    plt.plot(x_sfs, fit_fn(x_sfs), '--k', label=fit_fn)
-    rect = plt.Rectangle([1, 0], 250, 1, color='gray', edgecolor=None)
+    fit_fn = poly1d(fit)   
+    plt.plot(x_sfs, y_sfs, 'r+', color="#1a1aff")
+    #plt.plot(x_sfs, fit_fn(x_sfs), '--k', label=fit_fn)
+    rect = plt.Rectangle([1, 0], 250, 1, color='#CCCCCC', edgecolor=None)
     plt.gca().add_patch(rect)
-    rect = plt.Rectangle([0, 1], 1, 5, color='gray', edgecolor=None)
+    rect = plt.Rectangle([0, 1], 1, 5, color='#CCCCCC', edgecolor=None)
     plt.gca().add_patch(rect)
-    plt.xlabel("(D/C) / (d(D)elta/g(G)amma)")
+    plt.xlabel("(D/C) / ($\Delta/\Gamma$)")
     plt.ylabel("Speed-up of Spark in-mem")
     plt.legend()
-    plt.ylim(0)
-    plt.xlim(0)
+    plt.ylim(0, 5.5)
+    plt.xlim(0, 130)
     #plt.show()
     plt.savefig(os.path.join(os.path.dirname(out_file), 
                 'lustre-{}'.format(os.path.basename(out_file))))
