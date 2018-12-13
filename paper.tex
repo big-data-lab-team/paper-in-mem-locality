@@ -42,9 +42,8 @@
 \maketitle
 
 \begin{abstract}
-We benchmark Big Data processing strategies, namely in-memory 
-computing, data locality, and lazy evaluation, on typical neuroimaging 
-processing use cases represented by the BigBrain dataset. We use Dell 
+We benchmark in-memory, computing, data locality and lazy Big Data processing 
+strategies on typical neuroimaging processing use cases represented by the BigBrain dataset. We use Dell 
 EMC's Top-500 cluster, as well as Apache Spark and Nipype as 
 representative processing engines. We model Big Data thresholds by 
 comparing the data/compute ratio of the application to the disk and 
@@ -72,7 +71,7 @@ applications.
 
 \section{Introduction} % 1 page with abstract
 
-Big Data processing engines reduce data-related overheads, through 
+Big Data processing engines reduce data-related overheads through 
 use of concepts such as data locality, in-memory computing, and lazy evaluation.
 Data locality-aware scheduling, popularized by the MapReduce~\cite{dean2008mapreduce} 
 framework, runs tasks to the nodes holding the data rather than 
@@ -81,7 +80,7 @@ computing, adopted by MapReduce's successor Apache
 Spark~\cite{zaharia2016apache}, stores data in memory whenever 
 possible, reducing costly disk I/Os between pipeline steps. 
 Lazy evaluation, also used in Spark, means that results are computed only 
-when necessary, enabling further performance optimizations. Frameworks 
+when necessary to enable further performance optimizations. Frameworks 
 such as
 MapReduce and Spark have become mainstream tools for data analytics, 
 although many others, such as 
@@ -98,7 +97,7 @@ Data processing engines for scientific computing.
 Scientific applications differ from the typical Big Data use 
 cases, which might explain the remaining gap between Big Data and 
 scientific engines. While Big Data applications mostly target text 
-processing (e.g. Web search, frequent pattern mining, recommender 
+processing (e.g. web search, frequent pattern mining, recommender 
 systems~\cite{leskovec2014mining}) implemented in consistent software 
 libraries, scientific applications often involve 
 binary data such as images and signals, processed by command-line tools 
@@ -126,8 +125,8 @@ between these two components is blurred and needs to be clarified.
 
 % https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/20130001600.pdf
 
-Neuroimaging, our primary field of interest, is no exception to the 
-generalized rise of data volumes in science, due to the joint increase 
+Our primary field of interest, Neuroimaging, is no exception to the 
+generalized rise of data volumes in science due to the joint increase 
 of image resolution and subject cohort sizes~\cite{van2014human}. 
 Processing engines have been developed with neuroinformatics 
 applications in mind, for instance Nipype~\cite{gorgolewski2011nipype} 
@@ -155,14 +154,14 @@ that such efforts should only be conducted if substantial performance
 improvements are expected from in-memory computing, lazy 
 evaluation or data 
 locality. On the other hand, neuroimaging data processing engines are 
-still being developed, and it is legitimate to wonder whether these 
+still being developed, and the question remains whether these 
 projects should just be migrated to Spark, Dask, or other Big Data 
 engines.
 
-Our study focuses on performance. We intentionally do not intend to 
+Our study focuses on performance. We intentionally do not 
 compare Big Data and scientific data processing engines on the grounds 
 of workflow language expressivity, fault-tolerance, provenance capture 
-and representation, portability or reproducibility, which are otherwise 
+and representation, portability or reproducibility which are otherwise 
 critical concerns, addressed for instance in~\cite{samba}. Besides, our 
 study of performance focuses on the impact of data writes and 
 transfers. It purposely leaves out task scheduling to computing 
@@ -178,8 +177,8 @@ or \href{http://www.prace-ri.eu}{PRACE}, as neuroscientists typically use such p
  We assume that HPC systems are 
 multi-tenant, that compute nodes are accessible through a batch 
 scheduler, and that a file system shared among the compute nodes is 
-available. We intentionally leave distributed, 
-HDFS-like file system out, as initiatives to deploy them in HPC 
+available. We intentionally did not consider distributed, 
+HDFS-like file system, as initiatives to deploy them in HPC 
 centers, for instance Hadoop on-demand~\cite{krishnan2011myhadoop}, have not 
 become mainstream yet.
 
@@ -187,7 +186,7 @@ become mainstream yet.
 \todo{Perhaps talk about modeling and simulation here.}
 
 Our methods, including performance models, processing engines, 
-applications and infrastructure used are described in 
+applications and infrastructure used, are described in 
 Section~\ref{sec:methods}. Section~\ref{sec:results} presents our 
 results which we discuss in Section~\ref{sec:discussion} along with the 
 two research questions mentioned previously. 
@@ -224,8 +223,8 @@ log of how the data was modified. This log, known as the lineage, is used
 to reproduce any lost data.
 
 Two types of operations can be performed on RDDs:
-transformations and actions. Applying a transformation to an RDD produces a new,
-child, RDD through a narrow or wide dependency. A narrow dependency signifies 
+transformations and actions. Applying a transformation to an RDD produces a new
+child RDD through a narrow or wide dependency. A narrow dependency signifies 
 that the child is only dependent on a single parent partition, whereas a child 
 RDD is dependent on all parent partitions in a wide dependency. Examples of 
 Spark transformations include map, filter and join. To materialize an RDD, an
@@ -258,7 +257,7 @@ utilizes delay scheduling to optimize fairness and locality for all tasks.
 Three different types of schedulers are compatible with Spark: 1) Spark 
 Standalone, 2) YARN~\cite{vavilapalli2013apache} and 3) Mesos~\cite{hindman2011mesos}. The Spark Standalone
 scheduler is the default scheduler. YARN was a scheduler designed for Hadoop~\cite{white2012hadoop}
-clusters. It is prepackaged with Hadoop installations. In contrast to YARN, 
+clusters and is prepackaged with Hadoop installations. In contrast to YARN, 
 Mesos was designed to be used in multitenant cluster environments. In our experiments,
 we focus on the Spark Standalone cluster.
 
@@ -311,8 +310,8 @@ to existing Big Data solutions, which would necessitate modification to achieve 
 Jobs, or Interfaces, in Nipype, are encapsulated by a Node. A Node dictates that
 the job will execute on a single input. However, the MapNode, 
 a child variant of the Node, can execute on multiple inputs. All tasks in
-Nipype execute in their own uniquely named subdirectory which facilitates the provenance 
-tracking of inputs and outputs. This also enables checkpointing of the workflow.
+Nipype execute in their own uniquely named subdirectory which facilitates provenance 
+tracking of inputs and outputs, and also enables checkpointing of the workflow.
 In the case of Node failure or application modification, only the nodes who have
 been modified (verified by hash) are re-executed.
 
@@ -366,7 +365,7 @@ Shared File System                & \cellcolor{orange!25}Page Caching  & \cellco
 
  The main difference between storing the data in the engine memory, as in Spark, 
  and simply writing to an in-memory file system, such as tmpfs, is 
- related to what happens when the processed data fills up the available 
+ what happens when the processed data fills up the available 
  memory. In case engine memory is used, the engine must cleanup 
  unused data with some strategy to avoid crashes. In case an in-memory 
  file system is used, the kernel starts swapping memory to disk, and 
@@ -449,8 +448,8 @@ uniformly along task execution. With these assumptions, all the
 processes will write at the same rate, which explains why the model 
 does not depend on the total number of concurrent processes in the 
 application, but only on the max number of concurrent processes 
-executing on the same node ($\gamma$). We realize that these 
-assumptions would usually be violated in practice, but this simple 
+executing on the same node ($\gamma$). While these 
+assumptions would usually be violated in practice, this simple 
 model already provides interesting insights on the performance of disk 
 writes, as shown later. Naturally, the model also ignores other 
 processes that might be writing to disk concurrently to the 
@@ -463,11 +462,11 @@ or null, leading to the following inequality:
 \end{equation}
 This defines a data-compute ratio beyond which the page cache becomes 
 asymptotically useless. It should be noted that the transient phase 
-during the page cache fills up might last a significant amount of time, 
-in particular when $\dot d$ is positive but small. We intentionally do not model the 
-transient phase as it requires detailed knowledge on the size of the 
-page cache and the initial amount 
-of data in it ($d_0$), which are difficult to estimate.
+during which the page cache fills up might last a significant amount of time, 
+in particular when $\dot d$ is positive and small. We intentionally do not model the 
+transient phase as it requires detailed knowledge of difficult to estimate parameters  
+such as the page cache and the initial amount 
+of data in it ($d_0$).
 
  We will use Equation~\ref{eq:page-cache-inequality} to 
 define our benchmarks and interpret the results. It 
@@ -520,16 +519,16 @@ $\frac{\delta}{\gamma}$.
  \href{https://www.dellemc.com/resources/en-us/asset/sales-documents/products/storage/h16221-hpc-lab-brochure.pdf}{Dell EMC's Zenith 
  cluster}, a Top-500 machine in the Dell EMC HPC Innovation Lab, running 
  SLURM. For the Spark experiments, a Spark cluster was started atop our 
- SLURM allocation. We had access to 16 dedicated nodes. Each compute 
+ SLURM allocation through access to 16 dedicated nodes. Each compute 
  node ran on RHEL 7.4, was 
-equipped with 40 Intel Xeon Gold 6148 2.4GHz CPUs and had
-187GB of memory, 94GB of tmpfs and a Dell 120GB M.2 SATA SSD as local disk. 
-A 698TB Lustre server was accessible on each node through a 100Gb/s 
-Infiniband network. The apparent write bandwidth of the local disk, 
-Lustre file system and tmpfs were measured by sequentially writing various numbers
-of image blocks containing random intensities, to avoid 
-caching effects (measure\_bandwidth.py script in folder 
-benchmark\_scripts). They are reported in Table~\ref{table:bdwdths}.
+ equipped with 40 Intel Xeon Gold 6148 2.4GHz CPUs and had
+ 187GB of memory, 94GB of tmpfs and a Dell 120GB M.2 SATA SSD as local disk. 
+ A 698TB Lustre server was accessible on each node through a 100Gb/s 
+ Infiniband network. The apparent write bandwidth of the local disk, 
+ Lustre file system and tmpfs were measured by sequentially writing various numbers
+ of image blocks containing random intensities, to avoid 
+ caching effects (measure\_bandwidth.py script in folder 
+ benchmark\_scripts). They are reported in Table~\ref{table:bdwdths}.
 
 \begin{table}
 \centering
@@ -567,10 +566,10 @@ Lustre   ($\Delta$)   & 504.03 \\
 % Some BIDS dataset for fmriprep
 We used BigBrain~\cite{amunts2013bigbrain}, a 75GB 40$\mu$m isotropic 
 histological image of a 65-year-old male's brain. The BigBrain was selected due 
-to being the only one of its kind, as there does not yet exist a 
+to being the only one of its kind, as there does not yet exist any other
 higher-resolution image of a human brain. Moreover, there currently exists a 
 lack of standardized tools for processing the BigBrain as a consequence 
-of its size. To examine the effects processing BigBrain has on the Big Data 
+of its size. To examine the effects processing the BigBrain has on Big Data 
 strategies, we partitioned the full $3845\times3015\times3470$ voxel image into 30 ($5\times3\times2$)
 chunks, 125 ($5\times5\times5$) chunks and 750 ($5\times15\times10$) chunks. Additionally, the full 
 image was also split in half ($769\times603\times347$ voxels) and the half image was 
