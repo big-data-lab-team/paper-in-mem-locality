@@ -24,6 +24,10 @@ A pdf is uploaded for every release of the paper:
 To contribute, fork the repository, edit ```paper.tex``` and 
 ```biblio.bib```, and make a pull-request. 
 
+To generate the pdf:
+1. Generate the figures: `./results/code/gen_all_figures.sh` (requires matplotlib)
+2. Generate the pdf: `pdflatex paper ; bibtex paper ; pdflatex paper ; pdflatex paper`
+
 ## Data and code
 
 * `pipelines` contains the application pipelines benchmarked in the paper.

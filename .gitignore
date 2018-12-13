@@ -1,0 +1,11 @@
+paper.aux
+paepr.bbl
+paper.blg
+paper.log
+paper.pdf
+results/code/incrementation_makespan.out
+results/local-output.pdf
+results/lustre-output.pdf
+results/makespan.txt
+results/tmpfs-output.pdf
+x.log
