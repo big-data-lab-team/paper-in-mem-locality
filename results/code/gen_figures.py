@@ -85,33 +85,80 @@ def genfig(exp, makef, outf, cond):
             bench_res[key] = (asarray(index), y_labels)
 
         bar_width = 0.1
-        fig, ax = plt.subplots()
-
-        spim = ax.bar(bench_res[('sp', 'mem')][0] - bar_width * 3,
-                      bench_res[('sp', 'mem')][1],
-                      bar_width,color='#F4CC70', label='Spark in-memory')
+        fig, (ax, ax2) = plt.subplots(2, 1, sharex=True)
         
-        sptmpfs = ax.bar(bench_res[('sp', 'tmpfs')][0] - bar_width * 2,
-                         bench_res[('sp', 'tmpfs')][1],
-                         bar_width, color='#DE7A22', label='Spark tmpfs')
-        nptmpfs = ax.bar(bench_res[('np', 'tmpfs')][0] - bar_width,
-                         bench_res[('np', 'tmpfs')][1], bar_width, alpha=0.6,
-                         color='#DE7A22', label='Nipype tmpfs', hatch='/')
-        splocal = ax.bar(bench_res[('sp', 'local')][0],
-                         bench_res[('sp', 'local')][1],
-                         bar_width, color='#20948B', label='Spark local')
-        nplocal = ax.bar(bench_res[('np', 'local')][0] + bar_width,
-                         bench_res[('np', 'local')][1], bar_width, alpha=0.6,
-                         color='#20948B', label='Nipype local', hatch='/')
-        splustre = ax.bar(bench_res[('sp', 'lustre')][0] + bar_width * 2,
-                          bench_res[('sp', 'lustre')][1],
-                          bar_width, color='#1a1aff', label='Spark lustre')
-        nplustre = ax.bar(bench_res[('np', 'lustre')][0] + bar_width * 3,
-                          bench_res[('np', 'lustre')][1], bar_width, alpha=0.6,
-                          color='#1a1aff', label='Nipype lustre', hatch='/')
-        
-        ax.set_ylabel('Makespan (s)')
+        # Nipype bar's design
+        alpha = 0.6
+        hatch = '/'
 
+        spmem_data = (bench_res[('sp', 'mem')][0] - bar_width * 3,
+                      bench_res[('sp', 'mem')][1], bar_width)
+        col = '#F4CC70'
+        lbl = 'Spark - in-memory'
+        spim = ax.bar(*spmem_data, color=col, label=lbl)
+        spim_2 = ax2.bar(*spmem_data, color=col, label=lbl)
+
+        sptmpfs_data = (bench_res[('sp', 'tmpfs')][0] - bar_width * 2,
+                        bench_res[('sp', 'tmpfs')][1],
+                        bar_width)
+        col = '#DE7A22'
+        lbl = 'Spark - tmpfs'
+        
+        sptmpfs = ax.bar(*sptmpfs_data, color=col, label=lbl)
+        sptmpfs_2 = ax2.bar(*sptmpfs_data, color=col, label=lbl)
+
+        nptmpfs_data = (bench_res[('np', 'tmpfs')][0] - bar_width,
+                        bench_res[('np', 'tmpfs')][1], bar_width)
+        lbl = 'Nipype - tmpfs'
+
+        nptmpfs = ax.bar(*nptmpfs_data, color=col, label=lbl,
+                         alpha=alpha, hatch=hatch)
+        nptmpfs_2 = ax2.bar(*nptmpfs_data,color=col, label=lbl,
+                            alpha=alpha, hatch=hatch)
+
+        splocal_data = (bench_res[('sp', 'local')][0],
+                        bench_res[('sp', 'local')][1],
+                        bar_width)
+        col = '#20948B'
+        lbl = 'Spark - local disk'
+        splocal = ax.bar(*splocal_data, color=col, label=lbl)
+        splocal = ax2.bar(*splocal_data, color=col, label=lbl)
+        
+        nplocal_data = (bench_res[('np', 'local')][0] + bar_width,
+                        bench_res[('np', 'local')][1], bar_width)
+        lbl = 'Nipype - local disk'
+        nplocal = ax.bar(*nplocal_data, color=col, label=lbl,
+                         alpha=alpha, hatch=hatch)
+        nplocal_2 = ax2.bar(*nplocal_data, color=col, label=lbl,
+                            alpha=alpha, hatch=hatch)
+
+        splustre_data = (bench_res[('sp', 'lustre')][0] + bar_width * 2,
+                         bench_res[('sp', 'lustre')][1],
+                         bar_width)
+        col = '#1a1aff'
+        lbl = 'Spark - Lustre'
+        splustre = ax.bar(*splustre_data, color=col, label=lbl)
+        splustre = ax2.bar(*splustre_data, color=col,
+                           label=lbl)
+
+        nplustre_data = (bench_res[('np', 'lustre')][0] + bar_width * 3,
+                         bench_res[('np', 'lustre')][1],
+                         bar_width)
+        lbl = 'Nipype - Lustre'
+        nplustre = ax.bar(*nplustre_data, color=col,
+                          label=lbl, alpha=alpha, hatch=hatch)
+        nplustre = ax2.bar(*nplustre_data, color=col,
+                           label=lbl, alpha=alpha, hatch=hatch)
+        
+        ax.set_ylabel('Makespan (s)', y=-0.05)
+        ax.set_ylim(1000, 3500)
+        ax2.set_ylim(0, 400)
+
+        ax.spines['bottom'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax.get_xaxis().set_visible(False)
+        ax.tick_params(labeltop=False)
+        ax2.xaxis.tick_bottom()
 
         if exp == 4:
             index = arange(4)
@@ -120,21 +167,28 @@ def genfig(exp, makef, outf, cond):
 
         ax.set_xticks(index + bar_width / 2)
         if exp == 1:
-            ax.set_xticklabels((1, 10, 100))
-            ax.set_xlabel('Iterations')
+            ax2.set_xticklabels((1, 10, 100))
+            ax2.set_xlabel('Iterations')
         elif exp == 2:
-            ax.set_xticklabels(('30', '125', '750'))
-            ax.set_xlabel('Number of chunks (Big Brain)')
+            ax2.set_xticklabels(('30', '125', '750'))
+            ax2.set_xlabel('Number of chunks (Big Brain)')
         elif exp == 3:
-            ax.set_xticklabels(('MRI', 'Half BigBrain', 'BigBrain'))
-            ax.set_xlabel('Image')
+            ax2.set_xticklabels(('MRI', 'Half BigBrain', 'BigBrain'))
+            ax2.set_xlabel('Image')
         else:
-            ax.set_xticklabels((2.4, 3.44, 7.68, 320))
-            ax.set_xlabel('Task duration (s)')
+            ax2.set_xticklabels((2.4, 3.44, 7.68, 320))
+            ax2.set_xlabel('Task duration (s)')
 
-        fig.tight_layout()
-        #plt.box(False)
-        plt.legend()
+        d = .01
+        kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+        ax.plot((-d, +d), (-d, +d), **kwargs)
+        ax.plot((1 - d, 1 + d), (-d, +d), **kwargs)
+
+        kwargs.update(transform=ax2.transAxes)
+        ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+        ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
+
+        ax.legend(loc=2)
         plt.savefig(outf)
 
 
