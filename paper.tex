@@ -1038,13 +1038,22 @@ unlikely as the number of CPUs per node is 40. We therefore conclude
 that in-memory computing is likely to be useless for fMRI analysis.
 Naturally, this estimate is strongly dependent on the characteristics of the cluster.
 
-%~ \subsection{Effect of Data Locality}
+\subsection{Effect of Data Locality}
 %~ % It should be important, in particular when there is contention and when
 %~ % tasks are small. 
-%~ We measure the effect of data locality by comparing the runs of Spark 
-%~ on local disk (non-hatched green bars in Fig.~\ref{fig:results}) to the 
-%~ ones of Spark on Lustre (non-hatched blue bars). The speed-up provided by 
-%~ local execution peaks at 3.2, reached at 750 chunks in experiment 3. \todo{This needs to be finished or removed.} 
+We measure the effect of data locality by comparing the runs of Spark
+on local disk (non-hatched green bars in Fig.~\ref{fig:results}) to the 
+ones of Spark on Lustre (non-hatched blue bars). The speed-up provided by 
+local execution peaks at 3.2, reached at 750 chunks in experiment 3. Overall, 
+writing locally was usually preferrable to writing to Lustre, as a result of the
+lower contention on local disk. Although it may be true, as stated in~\cite{Anantharayanan2011datalocality},
+network bandwidths generally exceed that of disks, locality remains important 
+as contention to a shared filesystem will be much higher than local disk.\todo{This needs to be finished or removed.}
+The only time in our experiments where it was found that writing locally did not
+have a huge impact over Lustre, was in experiments 1 and 4, at 1 iteration and 
+when processing the MRI image, respectively. In both these scenarios, the Lustre 
+writes did not impact performance as the data was able to be written to page cache
+and flushed to Lustre asynchronously.
 
 \subsection{Combined Effect of In-Memory and Data Locality}
 We measure the combined effect of data locality and in-memory computing 
@@ -1130,15 +1139,33 @@ immediately followed by the remaining 10. While both are reasonable strategies f
 data processing, Spark may end up benefiting more from the page cache, as less data is 
 written in parallel (25 vs 40), giving more time for the page cache to flush.
 
-\subsection{Engine-Specific Comparisons}
 
-% Spark vs Nipype
-% Do we see the effect of Java serialization?
+With Nipype, MapNodes, which apply a given function to each element in a list, 
+were found to be slower than the Node, which apply a function to a single element,
+due to a blocking mechanism. For this reason, we selected to iterate through a 
+series of Nodes in our code.
 
 \subsection{Other Comments}
 
 Writing to node-local storage in a cluster environment comes at a cost, for both
-Nipype and Spark without HDFS.
+Nipype and Spark without HDFS. When a node is lost, the node-local data is lost
+with it. While Spark will recompute the lost partition automatically using lineage, 
+Nipype will fail for all tasks requiring the data. Spark, however, will fail if 
+RDDs of node-local filenames are shuffled, as the data associated with the filenames
+will not be shuffled with the RDD
+
+Nipype, when executed on Lustre, will checkpoint itself, ensuring resumption from
+last checkpoint. This is particularly important in the case of compute-intensive 
+applications, such as those found in neuroimaging. Spark also provides a checkpointing
+mechanism, however, it requires HDFS.
+
+It is common in neuroimaging applications for users to want access to all intermediate
+data. Such a feature is currently only possible when writing to shared filesystem. 
+It would also not be an option with Spark in-memory. To enable this burst buffers or 
+heteorogeneous storage managers (e.g. Triple-H~\cite{tripleH}) could be used to ensure
+fast processing and that all outputs (including intermediate outputs) will be 
+sent asynchronously to the shared filesystem. \todo{double check triple-H}
+
 % fault-tolerance: if you loose a node, you loose the data when it's written on disk or in memory.
 %                  then the only solution is to recompute, which spark would do automatically.
 %                  when nipype is run on lustre, it would avoid recomputing existing files, which Spark doesn't do.
@@ -1151,8 +1178,47 @@ Nipype and Spark without HDFS.
 
 % We haven't benchmarked shuffles but we know it's important.
 
+\subsection{Engine-Specific Comparisons}
+
+It was expected that Spark would experience longer processing times, particularly
+with the small datasets, due to Java serializing. This was not found to be the case. 
+Unlike Spark, Nipype performs a more thorough provenance capture, potentially owing to longer
+processing times.
+
+% Spark vs Nipype
+% Do we see the effect of Java serialization?
+
 \section{Conclusion} % 1 page with refs
 \label{sec:conclusion}
+
+Big Data performance optimization strategies help improve performance of typical 
+neuroimaging applications. Our experiments indicate that overall, in-memory computing 
+enables greater speedups than what can be obtained by using page cache and tmpfs. 
+While page cache and tmpfs do give memory-like performance, they are likely to fill
+up faster than memory, leading to increased performance penalties when compared
+to in-memory computing. 
+
+Data-locality was also found to play an important role in 
+application performance. Local disk was found to perform between than the shared
+filesystem, despite having lower bandwidth, due to increased contention on the 
+shared filesystem. As local disk will generally have less contention than a 
+shared filesystem. It is recommended to have the data stored locally. Although, 
+storing data locally may come at a cost to fault tolerance.
+
+Although a more thorough analysis of lazy evaluation remains to be performed, it
+is speculated that this may be the cause of the general performance difference 
+between Spark and Nipype. Furthermore, it is found that lazy evaluation optimizations increase 
+the likelihood of cache hits, thus improving overall performance.
+
+Even though Big Data strategies are beneficial to the processing of Big 
+neuroimaging data, it is estimated that it would require running a functional MRI
+dataset with 200 concurrent subjects for any noticeable impact using our Lustre 
+bandwidth estimate.
+
+To further improve neuroimaging data processing times, scheduling strategies for 
+Big Data application in a multitenant environment need to be investigated. 
+Additionally, workflow-aware cache eviction policies that maximizes page cache 
+usage for the workflows should be investigated.
 
 % Summary of the achievements.
 % When is it useful to use a Big Data engine for neuroinformatics applications?
