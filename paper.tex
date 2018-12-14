@@ -1130,6 +1130,11 @@ immediately followed by the remaining 10. While both are reasonable strategies f
 data processing, Spark may end up benefiting more from the page cache, as less data is 
 written in parallel (25 vs 40), giving more time for the page cache to flush.
 
+\subsection{Engine-Specific Comparisons}
+
+% Spark vs Nipype
+% Do we see the effect of Java serialization?
+
 \subsection{Other Comments}
 
 Writing to node-local storage in a cluster environment comes at a cost, for both
@@ -1145,11 +1150,6 @@ Nipype and Spark without HDFS.
 % i.e., to benefit from data locality while getting your results on Lustre. 
 
 % We haven't benchmarked shuffles but we know it's important.
-
-\subsection{Engine-Specific Comparisons}
-
-% Spark vs Nipype
-% Do we see the effect of Java serialization?
 
 \section{Conclusion} % 1 page with refs
 \label{sec:conclusion}
