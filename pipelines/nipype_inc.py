@@ -64,7 +64,7 @@ def increment_chunk(chunk, delay, benchmark_dir=None, cli=False):
     start_time = time()
 
     inc_chunk = os.path.basename(chunk)
-    
+
     # process data directly in code
     if not cli:
         im = nib.load(chunk)
@@ -134,7 +134,6 @@ def save_results(input_img, output_dir, it=0, benchmark_dir=None):
         from threading import get_ident
     except Exception as e:
         from thread import get_ident
-
 
     start = time()
 
