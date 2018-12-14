@@ -126,7 +126,7 @@ def genfig(exp, makef, outf, cond):
             ax.set_xticklabels(('30', '125', '750'))
             ax.set_xlabel('Number of chunks (Big Brain)')
         elif exp == 3:
-            ax.set_xticklabels(('MRI', 'HBB', 'BB'))
+            ax.set_xticklabels(('MRI', 'Half BigBrain', 'BigBrain'))
             ax.set_xlabel('Image')
         else:
             ax.set_xticklabels((2.4, 3.44, 7.68, 320))
