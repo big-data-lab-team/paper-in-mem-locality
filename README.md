@@ -6,16 +6,9 @@ neuroinformatics pipelines, using the (Apache
 Spark)[https://spark.apache.org] and 
 (Nipype)[http://nipype.readthedocs.io/en/latest] workflow engines.
 
-## Experiments
-
-1. Incrementation in Nipype and Spark
-[![Build Status](https://travis-ci.org/ValHayot/SOEN691-project.svg?branch=experiment0)](https://travis-ci.org/ValHayot/SOEN691-project)
-2. Simple binarization in Nipype and Spark
-3. K-means workflow in Nipype and Spark
-4. Reimplementation of an existing (fMRIPrep)[https://fmriprep.readthedocs.io/en/latest/index.html] workflow in Apache Spark
-- The fMRIPrep workflow selected is anatomical preprocessing without reconall (command-line call to be added here)
-- Spark implementation can be found under `pipelines/sparkprep.py`
-
+## Experiment
+Incrementation in Nipype and Spark
+[![Build Status](https://travis-ci.org/ValHayot/paper-in-mem-locality.svg?branch=master)](https://travis-ci.org/ValHayot/paper-in-mem-locality.svg?branch=master)
 ## Paper 
 
 A pdf is uploaded for every release of the paper:

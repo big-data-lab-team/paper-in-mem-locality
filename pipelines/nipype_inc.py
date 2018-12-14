@@ -81,7 +81,7 @@ def increment_chunk(chunk, delay, benchmark_dir=None, cli=False):
     else:
         program = 'increment.py'
 
-        if benchmark:
+        if benchmark_dir is not None:
             benchmark_file = os.path.join(benchmark_dir,
                                           "bench-{}.txt".format(
                                               str(uuid.uuid1())))

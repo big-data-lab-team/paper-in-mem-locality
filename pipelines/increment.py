@@ -12,23 +12,28 @@ except Exception as e:
     from thread import get_ident
 
 
+def increment(fn, outdir, delay, benchmark_file, start_time):
+    """Increment image data by 1
 
-def increment(fn, outdir, delay, benchmark_file, start_time, avg):
+    Keyword arguments:
+    fn -- filename containing image to increment
+    outdir -- output directory to save data to
+    delay -- task duration (sleep time) in seconds
+    benchmark_file -- file to save benchmarks to
+    start_time -- application driver start time
+    """
     print('Incrementing image: ', fn)
 
     start = time.time() - start_time
     im = nib.load(fn)
     end = time.time() - start_time
     print("read time", end)
-  
+
     if benchmark_file is not None:
         write_bench(benchmark_file, "read_file", start, end,
                     socket.gethostname(), op.basename(fn), get_ident())
 
     inc_data = im.get_data() + 1
-
-    if avg is not None:
-        inc_data += nib.load(avg).get_data().astype(inc_data.dtype, copy=False)
 
     im = nib.Nifti1Image(inc_data, affine=im.affine, header=im.header)
 
@@ -50,12 +55,14 @@ def increment(fn, outdir, delay, benchmark_file, start_time, avg):
     time.sleep(delay)
     print('Saved image to: ', out_fn)
 
+
 def write_bench(benchmark_file, name, start_time, end_time, node, filename,
                 executor):
 
     with open(benchmark_file, 'a+') as f:
         f.write('{0} {1} {2} {3} {4} {5}\n'.format(name, start_time, end_time,
                                                    node, filename, executor))
+
 
 def main():
 
@@ -71,8 +78,6 @@ def main():
                         help='start time of the application')
     parser.add_argument('--delay', type=float, default=0,
                         help='task duration time (in s)')
-    parser.add_argument('--avg', type=str,
-                        help='average chunk to be added to incremented chunk')
 
     args = parser.parse_args()
 
@@ -82,7 +87,7 @@ def main():
         pass
 
     increment(args.filename, args.output_dir, args.delay,
-              args.benchmark_file, args.delay, args.avg)
+              args.benchmark_file, args.delay)
 
 
 if __name__ == '__main__':

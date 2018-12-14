@@ -18,8 +18,23 @@ except Exception as e:
     from thread import get_ident
 
 
-def write_bench(name, start_time, end_time, node, output_dir,
-                filename, executor, benchmark_dir=None, benchmark_file=None):
+def write_bench(name, start_time, end_time, node, filename, executor,
+                benchmark_dir=None, benchmark_file=None):
+    """Write benchmarks to file.
+
+    Keyword arguments:
+    name -- name of task benchmarked
+    start_time -- task execution start time (in seconds)
+    end_time -- task execution end time (in seconds)
+    node -- hostname ID of node which executed task
+    filename -- filename of image task processed.
+    executor -- process ID
+    benchmark_dir -- directory to save benchmarks to. Not required if
+                     file provided
+    benchmark_file -- file to append benchmarks to.
+
+    Returns: filename of benchmark file
+    """
 
     if not benchmark_file:
         assert benchmark_dir, 'benchmark_dir parameter has not been defined.'
@@ -41,8 +56,20 @@ def write_bench(name, start_time, end_time, node, output_dir,
     return benchmark_file
 
 
-def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
+def read_img(filename, data, benchmark, start, bench_dir=None):
+    """Convert image in-memory binary data into Numpy array.
+    For in-memory Spark only.
 
+    Keyword arguments:
+    filename -- filename for which data belongs to
+    data -- binary image data
+    benchmark -- boolean value that specifies whether to benchmark the task
+    start -- start time of the driver (in seconds)
+    benchmark_dir -- benchmark directory required if benchmarking is requested.
+                     (default None)
+
+    Returns: Tuple containing image data and metadata
+    """
     start_time = time() - start
 
     print('Reading image')
@@ -59,7 +86,7 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
     bench_file = None
     if benchmark:
         bench_file = write_bench('read_img', start_time, end_time,
-                                 socket.gethostname(), output_dir, bn,
+                                 socket.gethostname(), bn,
                                  get_ident(), benchmark_dir=bench_dir)
 
     return (socket.gethostname(), filename, data, (im.affine, im.header),
@@ -67,9 +94,26 @@ def read_img(filename, data, benchmark, start, output_dir, bench_dir=None):
 
 
 def increment_data(idx, filename, data, metadata, delay, benchmark, start,
-                   output_dir, iteration=0, work_dir=None, bench_file=None,
+                   iteration=0, work_dir=None, bench_file=None,
                    cli=False):
+    """Increment image data by 1
 
+    Keyword arguments:
+    idx -- image index within the RDD (Or node hostname if in-memory)
+    filename -- image filename
+    data -- image data (can be None w/ CLI-based processing)
+    metadata -- image metadata (can be None w/ CLI-based processing)
+    delay -- task duration (or sleep time) in seconds
+    benchmark -- boolean representing whether task should be benchmarked
+    start -- start time of driver
+    iteration -- the current iteration value (default 0)
+    work_dir -- work directory to save intermediate results to with CLI
+               (default None)
+    bench_file -- the filepath to save benchmarks to
+    cli -- boolean denoting whether data should be incremented with CLI
+
+    Returns: Tuple containing incremented data and associated metadata
+    """
     start_time = time() - start
 
     if benchmark and os.path.isdir(bench_file):
@@ -124,7 +168,7 @@ def increment_data(idx, filename, data, metadata, delay, benchmark, start,
     if benchmark:
         bn = os.path.basename(filename)
         write_bench('increment_data', start_time, end_time,
-                    socket.gethostname(), output_dir, bn,
+                    socket.gethostname(), bn,
                     get_ident(), bench_dir, bench_file)
 
     return (idx, filename, data, metadata, bench_file, iteration + 1)
@@ -132,6 +176,22 @@ def increment_data(idx, filename, data, metadata, delay, benchmark, start,
 
 def save_incremented(idx, filename, data, metadata, benchmark, start,
                      output_dir, iterations, bench_file=None, cli=False):
+    """Save final data to output directory
+
+    Keyword arguments:
+    idx -- index of data in RDD (cli) or initial hostname (in-mem)
+    filename -- image filename
+    data -- image data (can be None if processed using CLI)
+    metadata -- image metadata
+    benchmark -- boolean denoting whether to benchmark task
+    start -- driver start time (in seconds)
+    output_dir -- directory to write final data to
+    iterations -- number of iterations that resulted in final data
+    bench_file -- the file to append benchmarks to (default None)
+    cli -- boolean denoting whether data was processed using a cli
+
+    Returns: Tuple containing final output filename
+    """
 
     start_time = time() - start
 
@@ -212,23 +272,24 @@ def main():
         pass
 
     # read binary data stored in folder and create an RDD from it
-
     if not args.cli:
         imRDD = sc.binaryFiles('file://' + os.path.abspath(args.bb_dir) + '/*')
         imRDD = imRDD.map(lambda x: read_img(x[0], x[1],
                                              args.benchmark,
-                                             start, output_dir,
+                                             start,
                                              bench_dir=benchmark_dir))
 
         for i in range(args.iterations):
             imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], x[2], x[3],
                                                        delay, args.benchmark,
-                                                       start, output_dir,
+                                                       start,
                                                        bench_file=x[4]))
     else:
         # get all filenames
         files = glob(os.path.join(args.bb_dir, '*'))
         fidx = [i for i in range(0, len(files))]
+
+        # Create an RDD of filenames
         imRDD = sc.parallelize(zip(fidx, files), len(files))
 
         if args.work_dir is None:
@@ -240,7 +301,7 @@ def main():
 
         imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], None, None,
                                                    delay, args.benchmark,
-                                                   start, output_dir, 0,
+                                                   start, 0,
                                                    work_dir,
                                                    benchmark_dir,
                                                    args.cli),
@@ -249,7 +310,7 @@ def main():
         for i in range(1, args.iterations):
             imRDD = imRDD.map(lambda x: increment_data(x[0], x[1], None, None,
                                                        delay, args.benchmark,
-                                                       start, output_dir,
+                                                       start,
                                                        x[5],
                                                        work_dir,
                                                        benchmark_dir,
