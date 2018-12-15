@@ -595,7 +595,7 @@ over other applications, such as binarization, as it ensured that a new image
 was created at each step (i.e. no caching effects within the executing 
 application). Each partitioned chunk was incremented by 1, in parallel, by
 the applications. As incrementing the images is not a time consuming process,
-we added a sleep delay to the incrementation stage to study the effects 
+we added a sleep delay to the incrementation task to study the effects 
 of tasks duration. The incremented chunks would be either 
 maintained in-memory (Spark only) or saved to either tmpfs, local disk or 
 Lustre (Spark and Nipype). Should more than a single iteration be requested, 
@@ -790,7 +790,7 @@ disk.
 Fig.~\ref{fig:iterations} shows the difference between the different 
 filesystem choices given the number of iterations. At 1 iteration, all 
 filesystems behave the same, although the application was writing faster than the
-disk bandwidth. This is because application data was not saturating the Page Cache
+disk bandwidth. This is because application data was not saturating the page cache
 (transient phase). The page cache, on Zenith, occupies 40\% of 
 total memory. With 192~GB of RAM on each node, 76.8~GB of 
 dirty data could be held in a node's page cache at any given time.
@@ -1048,7 +1048,7 @@ but the rationale for this recommendation is hardly explained. We
 believe that throughput degradation observed with more than 5 cores per 
 executor might be coming from full page caches.
 
-Spark currently doesn't include any active management of disk I/Os or 
+Spark does not currently include any active management of disk I/Os or 
 page caches. We believe that it would be beneficial to extend it toward 
 this direction, to increase the performance of operations where local 
 storage has to be used, such as disk spills or shuffles. For instance, 
