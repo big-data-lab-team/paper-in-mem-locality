@@ -6,8 +6,7 @@ neuroinformatics pipelines, using the (Apache
 Spark)[https://spark.apache.org] and 
 (Nipype)[http://nipype.readthedocs.io/en/latest] workflow engines.
 
-## Experiment
-Incrementation in Nipype and Spark
+## Experiment: Incrementation in Nipype and Spark
 [![Build Status](https://travis-ci.org/ValHayot/paper-in-mem-locality.svg?branch=master)](https://travis-ci.org/ValHayot/paper-in-mem-locality.svg?branch=master)
 ## Paper 
 
