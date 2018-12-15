@@ -40,9 +40,6 @@ def genfig(exp, makef, outf, cond):
        
             iterations = int(iterations)
 
-            if exp == 3 and fs == 'mem' and im == 'MRI':
-                continue
-
             if exp == 1:
                 if delay != cond: continue
                 bench_res[(engine, fs)].append((iterations,
@@ -188,7 +185,7 @@ def genfig(exp, makef, outf, cond):
         ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)
         ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
 
-        ax.legend(loc=2)
+        ax.legend()
         plt.savefig(outf)
 
 
