@@ -15,6 +15,7 @@ install:
     - tar -xzf spark-2.3.1-bin-hadoop2.7.tgz
     - sudo apt-get install pandoc
     - pip install pypandoc coveralls pytest pycodestyle pyspark nibabel nipype
+    - pip install --upgrade pytest
 
 script:
     - export SPARK_HOME=`pwd`/spark-2.3.1-bin-hadoop2.7
