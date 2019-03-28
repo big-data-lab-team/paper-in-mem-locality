@@ -8,7 +8,7 @@ exp14_delays = [2.4, 3.44, 7.68, 320]
 exp2_delays = [0.59, 3.52, 14.67]
 exp3_delays = 1.76
 
-def genfig(exp, makef, outf, cond):
+def genfig(exp, makef, outf, cond, framework="Spark"):
     bench_res = {('sp', 'mem'): [],
                  ('sp', 'tmpfs'): [],
                  ('sp', 'local'): [],
@@ -88,64 +88,70 @@ def genfig(exp, makef, outf, cond):
         alpha = 0.6
         hatch = '/'
 
-        spmem_data = (bench_res[('sp', 'mem')][0] - bar_width * 3,
-                      bench_res[('sp', 'mem')][1], bar_width)
-        col = '#F4CC70'
-        lbl = 'Spark - in-memory'
-        spim = ax.bar(*spmem_data, color=col, label=lbl)
-        spim_2 = ax2.bar(*spmem_data, color=col, label=lbl)
+        if framework == "spark":
+            spmem_data = (bench_res[('sp', 'mem')][0] - bar_width * 1,
+                          bench_res[('sp', 'mem')][1], bar_width)
+            col = '#F4CC70'
+            lbl = 'Spark - in-memory'
+            spim = ax.bar(*spmem_data, color=col, label=lbl)
+            spim_2 = ax2.bar(*spmem_data, color=col, label=lbl)
 
-        sptmpfs_data = (bench_res[('sp', 'tmpfs')][0] - bar_width * 2,
-                        bench_res[('sp', 'tmpfs')][1],
-                        bar_width)
-        col = '#DE7A22'
-        lbl = 'Spark - tmpfs'
-        
-        sptmpfs = ax.bar(*sptmpfs_data, color=col, label=lbl)
-        sptmpfs_2 = ax2.bar(*sptmpfs_data, color=col, label=lbl)
+            sptmpfs_data = (bench_res[('sp', 'tmpfs')][0],
+                            bench_res[('sp', 'tmpfs')][1],
+                            bar_width)
+            col = '#DE7A22'
+            lbl = 'Spark - tmpfs'
+            
+            sptmpfs = ax.bar(*sptmpfs_data, color=col, label=lbl)
+            sptmpfs_2 = ax2.bar(*sptmpfs_data, color=col, label=lbl)
 
-        nptmpfs_data = (bench_res[('np', 'tmpfs')][0] - bar_width,
-                        bench_res[('np', 'tmpfs')][1], bar_width)
-        lbl = 'Nipype - tmpfs'
+            splocal_data = (bench_res[('sp', 'local')][0] + bar_width,
+                            bench_res[('sp', 'local')][1],
+                            bar_width)
+            col = '#20948B'
+            lbl = 'Spark - local disk'
+            splocal = ax.bar(*splocal_data, color=col, label=lbl)
+            splocal = ax2.bar(*splocal_data, color=col, label=lbl)
 
-        nptmpfs = ax.bar(*nptmpfs_data, color=col, label=lbl,
-                         alpha=alpha, hatch=hatch)
-        nptmpfs_2 = ax2.bar(*nptmpfs_data,color=col, label=lbl,
-                            alpha=alpha, hatch=hatch)
+            splustre_data = (bench_res[('sp', 'lustre')][0] + bar_width * 2,
+                             bench_res[('sp', 'lustre')][1],
+                             bar_width)
+            col = '#1a1aff'
+            lbl = 'Spark - Lustre'
+            splustre = ax.bar(*splustre_data, color=col, label=lbl)
+            splustre = ax2.bar(*splustre_data, color=col,
+                               label=lbl)
 
-        splocal_data = (bench_res[('sp', 'local')][0],
-                        bench_res[('sp', 'local')][1],
-                        bar_width)
-        col = '#20948B'
-        lbl = 'Spark - local disk'
-        splocal = ax.bar(*splocal_data, color=col, label=lbl)
-        splocal = ax2.bar(*splocal_data, color=col, label=lbl)
-        
-        nplocal_data = (bench_res[('np', 'local')][0] + bar_width,
-                        bench_res[('np', 'local')][1], bar_width)
-        lbl = 'Nipype - local disk'
-        nplocal = ax.bar(*nplocal_data, color=col, label=lbl,
-                         alpha=alpha, hatch=hatch)
-        nplocal_2 = ax2.bar(*nplocal_data, color=col, label=lbl,
-                            alpha=alpha, hatch=hatch)
+        ##NIPYPE
+        else:
+            nptmpfs_data = (bench_res[('np', 'tmpfs')][0] - bar_width,
+                            bench_res[('np', 'tmpfs')][1], bar_width)
+            lbl = 'Nipype - tmpfs'
 
-        splustre_data = (bench_res[('sp', 'lustre')][0] + bar_width * 2,
-                         bench_res[('sp', 'lustre')][1],
-                         bar_width)
-        col = '#1a1aff'
-        lbl = 'Spark - Lustre'
-        splustre = ax.bar(*splustre_data, color=col, label=lbl)
-        splustre = ax2.bar(*splustre_data, color=col,
-                           label=lbl)
+            col = '#DE7A22'
+            nptmpfs = ax.bar(*nptmpfs_data, color=col, label=lbl,
+                             alpha=alpha)
+            nptmpfs_2 = ax2.bar(*nptmpfs_data,color=col, label=lbl,
+                                alpha=alpha)
+            
+            col = '#20948B'
+            nplocal_data = (bench_res[('np', 'local')][0],
+                            bench_res[('np', 'local')][1], bar_width)
+            lbl = 'Nipype - local disk'
+            nplocal = ax.bar(*nplocal_data, color=col, label=lbl,
+                             alpha=alpha)
+            nplocal_2 = ax2.bar(*nplocal_data, color=col, label=lbl,
+                                alpha=alpha)
 
-        nplustre_data = (bench_res[('np', 'lustre')][0] + bar_width * 3,
-                         bench_res[('np', 'lustre')][1],
-                         bar_width)
-        lbl = 'Nipype - Lustre'
-        nplustre = ax.bar(*nplustre_data, color=col,
-                          label=lbl, alpha=alpha, hatch=hatch)
-        nplustre = ax2.bar(*nplustre_data, color=col,
-                           label=lbl, alpha=alpha, hatch=hatch)
+            col = '#1a1aff'
+            nplustre_data = (bench_res[('np', 'lustre')][0] + bar_width,
+                             bench_res[('np', 'lustre')][1],
+                             bar_width)
+            lbl = 'Nipype - Lustre'
+            nplustre = ax.bar(*nplustre_data, color=col,
+                              label=lbl, alpha=alpha)
+            nplustre = ax2.bar(*nplustre_data, color=col,
+                               label=lbl, alpha=alpha)
         
         ax.set_ylabel('Makespan (s)', y=-0.05)
         ax.set_ylim(1000, 3500)
@@ -201,10 +207,11 @@ def main():
                         'possible to vary processing time or number of '
                         'iterations respectively. Option is ignored for other '
                         'experiments')
+    parser.add_argument('-f', '--framework', type=str, help="framework to use")
 
     args = parser.parse_args()
 
-    genfig(args.exp, args.makespan_file, args.out_file, args.condition)
+    genfig(args.exp, args.makespan_file, args.out_file, args.condition, args.framework)
 
 
 if __name__=="__main__":
