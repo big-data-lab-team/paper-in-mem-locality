@@ -11,8 +11,8 @@ Spark)[https://spark.apache.org] and
 
 ## Paper 
 A pdf is uploaded for every release of the paper:
-
-[Paper v0.1](https://github.com/big-data-lab-team/paper-in-mem-locality/releases/download/0.1/paper.pdf)
+[Paper v1.0](https://github.com/big-data-lab-team/paper-in-mem-locality/releases/download/1.0/paper.pdf) - Final version accepted at CCgrid
+[Paper v0.1](https://github.com/big-data-lab-team/paper-in-mem-locality/releases/download/0.1/paper.pdf) - Arxiv preprint.
 
 To contribute, fork the repository, edit ```paper.tex``` and 
 ```biblio.bib```, and make a pull-request. 
