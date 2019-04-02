@@ -11,14 +11,14 @@ jdk:
     - openjdk7
 
 install:
-    - wget http://apache.mirror.gtcomm.net/spark/spark-2.3.1/spark-2.3.1-bin-hadoop2.7.tgz
-    - tar -xzf spark-2.3.1-bin-hadoop2.7.tgz
+    - wget http://apache.forsale.plus/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz
+    - tar -xzf spark-2.4.0-bin-hadoop2.7.tgz
     - sudo apt-get install pandoc
     - pip install pypandoc coveralls pytest pycodestyle pyspark nibabel nipype
     - pip install --upgrade pytest
 
 script:
-    - export SPARK_HOME=`pwd`/spark-2.3.1-bin-hadoop2.7
+    - export SPARK_HOME=`pwd`/spark-2.4.0-bin-hadoop2.7
     - export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH:`pwd`/pipelines
     - export PYTHONPATH=$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$PYTHONPATH
     - sudo cp pipelines/increment.py /bin
